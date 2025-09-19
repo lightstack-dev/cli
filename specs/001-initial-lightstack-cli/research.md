@@ -195,17 +195,28 @@ tests/
 
 ## 9. Package Management & Distribution
 
-**Decision**: npm registry with conventional releases
+**Decision**: Bun as package manager/runtime, npm registry for distribution
 **Rationale**:
-- Universal availability
+- Bun: 10-100x faster than npm for installs and script execution
+- Bun: Built-in TypeScript support, no need for tsx/ts-node
+- Bun: Compatible with npm packages and package.json
+- npm registry: Universal availability for end users
 - Supports scoped packages (@lightstack-dev/cli)
-- Built-in versioning and dependency management
-- Works with npx for try-before-install
+- End users can still use npm/yarn/pnpm to install
+
+**Development with Bun**:
+```bash
+bun install          # Lightning fast dependency installation
+bun run dev          # Direct TypeScript execution
+bun test            # Native test runner (or Vitest)
+bun build           # Bundle for distribution
+```
 
 **Release Strategy**:
 - Semantic versioning
 - Automated releases via GitHub Actions
 - Changelog generation from conventional commits
+- Publish to npm registry (works with any package manager)
 
 ## 10. Platform Compatibility
 
