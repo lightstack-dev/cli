@@ -42,7 +42,7 @@ describe('light init command', () => {
   });
 
   it('should support --template option', () => {
-    const output = execSync(`${cli} init --template sveltekit`, { encoding: 'utf-8' });
+    execSync(`${cli} init --template sveltekit`, { encoding: 'utf-8' });
 
     const config = JSON.parse(readFileSync('light.config.json', 'utf-8'));
     expect(config.template).toBe('sveltekit');

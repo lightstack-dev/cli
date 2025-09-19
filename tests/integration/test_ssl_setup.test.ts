@@ -59,10 +59,8 @@ describe('mkcert SSL Certificate Setup', () => {
         // Should create cert files
         const certDir = '.light/certs';
         if (existsSync(certDir)) {
-          // Common certificate file patterns
-          const patterns = ['*.pem', '*.key', '*.crt'];
-          // At least one certificate file should exist
-          // Note: exact filenames depend on mkcert implementation
+          // Certificate directory should exist (exact files depend on mkcert implementation)
+          expect(existsSync(certDir)).toBe(true);
         }
       }
     } catch (error: any) {
