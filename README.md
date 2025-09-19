@@ -131,7 +131,11 @@ light status          # Show service status
 light logs             # View all service logs
 light logs my-app      # View specific service logs
 light down             # Stop development environment
+light --help           # Show all available commands
+light --version        # Show CLI version
 ```
+
+**Note**: Lightstack CLI focuses on orchestrating your development workflow. It does not pass through commands to other tools. Use BaaS CLIs (Supabase, PocketBase, etc.) directly for their specific operations.
 
 ## 🔧 Configuration
 

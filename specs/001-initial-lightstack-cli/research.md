@@ -117,27 +117,28 @@ async function selfUpdate() {
 }
 ```
 
-## 6. BaaS CLI Passthrough Strategy
+## 6. BaaS Integration Strategy
 
-**Decision**: Command wrapping with setup validation
+**Decision**: No command passthrough - Lightstack CLI only handles its own commands
 **Rationale**:
-- Ensure Docker/environment is ready before BaaS operations
-- Set up networking between CLI and local services
-- Pass unknown commands through to underlying CLI
-- Users get full BaaS CLI functionality
+- Single Responsibility Principle: CLI orchestrates development workflow only
+- Clear separation of concerns between tools
+- Prevents confusion about which tool handles what
+- Users interact directly with BaaS CLIs for their specific needs
+- Lightstack focuses on Docker orchestration and deployment
 
 **Implementation Pattern**:
 ```bash
-light supabase start
-  ↓
-1. Check Docker is running
-2. Ensure network connectivity
-3. Set environment variables if needed
-4. Execute: supabase start
-5. Report any failures with context
+# Lightstack handles its domain
+light up                    # Start Docker environment
+light deploy production     # Deploy application
+
+# Users call BaaS tools directly
+supabase db reset          # Supabase handles its own commands
+supabase functions deploy  # Direct interaction, no passthrough
 ```
 
-**Command Discovery**: None - just pass through and let BaaS CLI handle unknown commands
+**Command Boundaries**: Lightstack CLI only accepts defined commands (init, up, down, deploy, status, logs)
 
 ## 7. CI/CD File Generation
 

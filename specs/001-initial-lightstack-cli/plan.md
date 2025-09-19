@@ -37,6 +37,7 @@ Building a unified CLI tool that orchestrates development workflow from local de
 **Primary Dependencies**: Commander.js (CLI framework), Docker SDK, Let's Encrypt client
 **Storage**: Local JSON config files (.lightstack/), environment variables
 **Testing**: Vitest (fast, ESM-native test runner)
+**Documentation**: VitePress static site generator, deployed to https://cli.lightstack.dev
 **Target Platform**: macOS, Linux, Windows with WSL2
 **Project Type**: single (CLI tool)
 **Performance Goals**: <2s response time for local operations, <30s for deployment operations
@@ -136,7 +137,14 @@ tests/
    - Keep under 150 lines for token efficiency
    - Output to repository root
 
-**Output**: data-model.md, /contracts/*, failing tests, quickstart.md, agent-specific file
+6. **Design documentation infrastructure** (for NFR-001):
+   - Select static site generator (VitePress for Vue ecosystem alignment)
+   - Plan documentation structure (guides, API reference, examples)
+   - Design CI/CD pipeline for automated deployment
+   - Define hosting strategy for https://cli.lightstack.dev
+   - Create templates for auto-generated command docs
+
+**Output**: data-model.md, /contracts/*, failing tests, quickstart.md, agent-specific file, docs infrastructure plan
 
 ## Phase 2: Task Planning Approach
 *This section describes what the /tasks command will do - DO NOT execute during /plan*
@@ -148,13 +156,16 @@ tests/
 - Each entity → model creation task [P]
 - Each user story → integration test task
 - Implementation tasks to make tests pass
+- Documentation site setup and deployment tasks
+- CI/CD pipeline for docs.lightstack.dev
 
 **Ordering Strategy**:
 - TDD order: Tests before implementation
 - Dependency order: Models before services before UI
+- Documentation can parallel once CLI structure exists
 - Mark [P] for parallel execution (independent files)
 
-**Estimated Output**: 25-30 numbered, ordered tasks in tasks.md
+**Estimated Output**: 70-80 numbered, ordered tasks in tasks.md (includes docs infrastructure)
 
 **IMPORTANT**: This phase is executed by the /tasks command, NOT by /plan
 

@@ -5,7 +5,7 @@
 
 ## Command Overview
 
-Lightstack CLI provides focused commands for Lightstack project management:
+Lightstack CLI provides focused commands for development workflow orchestration. It does not pass through commands to other tools - users interact with BaaS CLIs directly for their specific needs.
 
 ```bash
 light init [project-name]     # Initialize new project
@@ -17,6 +17,8 @@ light down                    # Stop development environment
 light --help                  # Show help
 light --version               # Show version
 ```
+
+**Note**: Unknown commands will result in an error with helpful suggestions. For BaaS-specific operations (e.g., Supabase migrations), use the respective CLI tools directly.
 
 ## Command Specifications
 
@@ -226,6 +228,29 @@ For convenience:
 - `light start` → `light up`
 - `light stop` → `light down`
 - `light ps` → `light status`
+
+## Unknown Commands
+
+When an unknown command is provided, Lightstack CLI will:
+1. Display an error message
+2. Suggest similar known commands (if applicable)
+3. Show how to get help
+4. NOT pass through to other tools
+
+**Example**:
+```bash
+$ light supabase init
+❌ Error: Unknown command 'supabase'
+
+Did you mean one of these?
+  light status
+  light up
+
+For Supabase operations, use the Supabase CLI directly:
+  supabase init
+
+For help: light --help
+```
 
 ---
 
