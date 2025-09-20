@@ -75,7 +75,7 @@ CMD ["npm", "run", "dev"]
     // Test CLI up command validation (will fail appropriately without Docker/real app)
     let upError = '';
     try {
-      execSync(`${cli} up`, { encoding: 'utf-8', stdio: 'pipe' });
+      execSync(`${cli} up`, { encoding: 'utf-8', stdio: 'pipe', timeout: 10000 });
     } catch (error: any) {
       upError = [
         error.stdout?.toString(),
@@ -115,7 +115,7 @@ port = 54323
     // Test CLI up command with BaaS detection
     let upOutput = '';
     try {
-      execSync(`${cli} up`, { encoding: 'utf-8', stdio: 'pipe' });
+      execSync(`${cli} up`, { encoding: 'utf-8', stdio: 'pipe', timeout: 10000 });
     } catch (error: any) {
       upOutput = [
         error.stdout?.toString(),
@@ -151,7 +151,7 @@ port = 54323
     // Test without .env file (should show informational message)
     let upOutputNoEnv = '';
     try {
-      execSync(`${cli} up`, { encoding: 'utf-8', stdio: 'pipe' });
+      execSync(`${cli} up`, { encoding: 'utf-8', stdio: 'pipe', timeout: 10000 });
     } catch (error: any) {
       upOutputNoEnv = [
         error.stdout?.toString(),
@@ -177,7 +177,7 @@ port = 54323
     // Try to run up without Dockerfile (should fail with helpful error)
     let errorOutput = '';
     try {
-      execSync(`${cli} up`, { encoding: 'utf-8' });
+      execSync(`${cli} up`, { encoding: 'utf-8', timeout: 10000 });
     } catch (error: any) {
       errorOutput = error.stdout?.toString() || error.stderr?.toString() || error.message;
     }
