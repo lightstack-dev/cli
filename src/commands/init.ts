@@ -72,9 +72,7 @@ function isValidProjectName(name: string): boolean {
 
 function createDockerComposeFiles(project: Project) {
   // Base docker-compose.yml
-  const baseCompose = `version: '3.8'
-
-services:
+  const baseCompose = `services:
   traefik:
     image: traefik:v3.0
     container_name: \${PROJECT_NAME:-${project.name}}-traefik
@@ -118,9 +116,7 @@ networks:
   writeFileSync('.light/docker-compose.yml', baseCompose);
 
   // Development override
-  const devCompose = `version: '3.8'
-
-services:
+  const devCompose = `services:
   traefik:
     volumes:
       - ./certs:/certs:ro
@@ -143,9 +139,7 @@ services:
   writeFileSync('.light/docker-compose.dev.yml', devCompose);
 
   // Production override
-  const prodCompose = `version: '3.8'
-
-services:
+  const prodCompose = `services:
   traefik:
     command:
       - --api.dashboard=false
