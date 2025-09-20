@@ -44,10 +44,10 @@ jobs:
       run: bun run build
 
     - name: Run unit tests
-      run: bun test tests/unit/
+      run: bun run vitest run tests/unit/
 
     - name: Run integration tests
-      run: bun test tests/integration/cli-functionality.test.ts tests/integration/full-workflow.test.ts
+      run: bun run vitest run tests/integration/cli-functionality.test.ts tests/integration/full-workflow.test.ts
 
     - name: Test CLI help command (smoke test)
       run: node dist/cli.js --help || echo "Help command executed (exit code expected)"
