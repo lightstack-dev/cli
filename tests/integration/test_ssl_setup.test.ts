@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execSync } from 'child_process';
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'fs';
+import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -77,7 +77,7 @@ describe('mkcert SSL Certificate Setup', () => {
 
     // Check that docker-compose.dev.yml references certificates
     if (existsSync('.light/docker-compose.dev.yml')) {
-      const devContent = require('fs').readFileSync('.light/docker-compose.dev.yml', 'utf-8');
+      const devContent = readFileSync('.light/docker-compose.dev.yml', 'utf-8');
       expect(devContent).toMatch(/(certs|certificate|ssl)/i);
     }
   });

@@ -1,17 +1,16 @@
 import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { basename } from 'path';
 import chalk from 'chalk';
+import yaml from 'js-yaml';
 import type { Project } from '../models/index.js';
 
 interface InitOptions {
-  template?: string;
   force?: boolean;
 }
 
 export function initCommand(projectName?: string, options: InitOptions = {}) {
   try {
     const name = projectName || basename(process.cwd());
-    const template = options.template || 'nuxt';
     const force = options.force || false;
 
     // Validate project name
@@ -20,18 +19,17 @@ export function initCommand(projectName?: string, options: InitOptions = {}) {
     }
 
     // Check if project already exists
-    if (existsSync('light.config.json') && !force) {
+    if ((existsSync('light.config.yaml') || existsSync('light.config.yml')) && !force) {
       throw new Error('Project already exists. Use --force to overwrite.');
     }
 
     // Create project configuration
     const project: Project = {
       name,
-      template,
       services: [
         {
           name: 'app',
-          type: template,
+          type: 'nuxt',
           port: 3000,
         }
       ]
@@ -42,18 +40,12 @@ export function initCommand(projectName?: string, options: InitOptions = {}) {
     mkdirSync('.light/certs', { recursive: true });
 
     // Create configuration file
-    writeFileSync('light.config.json', JSON.stringify(project, null, 2));
-
-    // Create environment files
-    writeFileSync('.env.development', `NODE_ENV=development
-PROJECT_NAME=${name}
-APP_PORT=3000
-`);
-
-    writeFileSync('.env.production', `NODE_ENV=production
-PROJECT_NAME=${name}
-APP_PORT=3000
-`);
+    const yamlConfig = yaml.dump(project, {
+      indent: 2,
+      lineWidth: 80,
+      noRefs: true
+    });
+    writeFileSync('light.config.yaml', yamlConfig);
 
     // Create basic Docker Compose files
     createDockerComposeFiles(project);
@@ -61,8 +53,7 @@ APP_PORT=3000
     // Success message
     console.log(chalk.green('✓'), `Project '${name}' initialized`);
     console.log(chalk.green('✓'), 'Docker Compose files generated');
-    console.log(chalk.green('✓'), 'Environment files created');
-    console.log(chalk.green('✓'), 'Local certificates created');
+    console.log(chalk.green('✓'), 'Certificate directories created');
 
     console.log('\nNext steps:');
     console.log('  light up              # Start development');
@@ -137,8 +128,6 @@ services:
       - --providers.file.directory=/certs
 
   ${project.services[0]?.name || 'app'}:
-    env_file:
-      - .env.development
     volumes:
       - .:/app:cached
       - /app/node_modules
@@ -163,8 +152,6 @@ services:
       - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
 
   ${project.services[0]?.name || 'app'}:
-    env_file:
-      - .env.production
     restart: unless-stopped
 `;
 

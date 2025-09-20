@@ -47,17 +47,18 @@ A deployment target represents where the application can be deployed.
 - Each target has its own environment variables
 - Targets can have different SSL configurations
 
-### Environment
-Environment-specific configuration for variables and secrets.
+### Environment Configuration
+Environment-specific deployment configuration (not environment variables).
 
 **What it contains:**
-- Variable definitions for the environment
-- References to secrets (not the actual secret values)
+- Deployment target type (local, remote)
+- Docker Compose file combinations
+- Runtime configuration (not secrets)
 
 **Key rules:**
-- Environment names match deployment target names
-- Secret values never stored in configuration files
-- Variables can be overridden per environment
+- Environment configuration stored in light.config.json only
+- Environment variables managed separately by users
+- Each environment defines its Docker Compose file strategy
 
 ## Relationships
 
@@ -100,16 +101,22 @@ Initiated → Building → Deploying → Health Check → Complete
 ### Configuration Files
 ```
 project-root/
-├── light.config.json     # Main project configuration
-├── .env.development      # Development environment variables
-├── .env.production       # Production environment variables
+├── light.config.yaml     # Main project configuration (YAML)
+├── .env                  # User-managed environment variables (gitignored)
 └── .light/               # CLI-generated files
-    ├── docker-compose.yml
-    ├── docker-compose.dev.yml
-    ├── docker-compose.prod.yml
-    ├── certs/             # mkcert certificates for *.lvh.me
-    └── deployments/       # Deployment history
+    ├── docker-compose.yml     # Base Docker Compose configuration
+    ├── docker-compose.dev.yml # Development overrides
+    ├── docker-compose.prod.yml # Production overrides
+    ├── certs/             # Local SSL certificates (mkcert)
+    └── deployments/       # Deployment history and state
 ```
+
+### Environment Variable Strategy (12-Factor Principles)
+- **Single .env file**: Users create and manage `.env` in project root
+- **No CLI .env generation**: CLI respects existing user setup
+- **Local development**: `.env` file used automatically via `--env-file ./.env`
+- **Remote deployments**: Servers manage their own environment variables
+- **Secrets separation**: Production secrets never in config files
 
 ### Generated Docker Compose
 Lightstack CLI generates Docker Compose files based on the project configuration:

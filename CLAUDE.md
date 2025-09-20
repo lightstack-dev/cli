@@ -44,6 +44,7 @@ project-root/
 
 ## Implementation Guidelines
 
+
 ### Constitutional Principles
 1. **Don't Reinvent the Wheel**: If a tool does it well, orchestrate it
 2. **Configuration Over Code**: Generate configs for existing tools

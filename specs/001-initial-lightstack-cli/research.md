@@ -38,9 +38,10 @@ docker-compose.prod.yml     # Production overrides (Let's Encrypt, replicas)
 ```
 
 **Command Mapping**:
-- `light up` → `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d`
-- `light deploy` → Generates and deploys production compose files
-- Direct orchestration via shell commands, not SDK
+- `light up` → `docker compose -f .light/docker-compose.yml -f .light/docker-compose.dev.yml --env-file ./.env up -d`
+- `light down` → `docker compose -f .light/docker-compose.yml -f .light/docker-compose.dev.yml --env-file ./.env down`
+- `light deploy` → Generates and deploys production compose files to remote targets
+- Direct orchestration via shell commands, not Docker SDK
 
 ## 3. Configuration Management
 
@@ -52,14 +53,72 @@ docker-compose.prod.yml     # Production overrides (Let's Encrypt, replicas)
 
 **File Structure**:
 ```
-.lightstack/
-├── config.json         # Project configuration
-├── .env.development    # Dev environment variables
-├── .env.production     # Prod environment variables
-└── deployments/        # Deployment history and state
+.light/
+├── docker-compose.yml      # Base Docker Compose configuration
+├── docker-compose.dev.yml  # Development overrides
+├── docker-compose.prod.yml # Production overrides
+├── certs/                  # Local SSL certificates (mkcert)
+└── deployments/            # Deployment history and state
+light.config.json           # Project configuration (root level)
+.env                        # User-managed environment variables (root level, gitignored)
 ```
 
-## 4. SSL/TLS Strategy
+**Environment Variable Strategy**:
+- **Single .env file**: Users manage their own `.env` file in project root (follows 12-factor principles)
+- **No CLI-generated .env files**: CLI doesn't create environment files - respects user's existing setup
+- **Explicit .env loading**: Docker Compose commands use `--env-file ./.env` to explicitly load root .env file
+- **Environment-specific configs**: Different environments handled via separate Docker Compose override files, not separate .env files
+- **Production secrets**: Remote servers manage their own environment variables (via cloud console, SSH, etc.)
+
+**Environment Validation**:
+- Warns when `.env` file is missing but provides defaults
+- Checks for required variables in production deployments (e.g., ACME_EMAIL)
+- Shows informational notes about common missing variables
+- Graceful degradation with helpful error messages
+
+## 4. Deployment Configuration Management
+
+**Decision**: YAML configuration with multiple environment support
+**Rationale**:
+- YAML for better readability and comments support
+- Multiple deployment environments in single config file
+- Separation of deployment config from environment variables
+- Industry standard for configuration files (Docker Compose, GitHub Actions, etc.)
+
+**Current Configuration Structure** (YAML):
+```yaml
+name: my-app
+services:
+  - name: app
+    type: nuxt
+    port: 3000
+```
+
+**Planned Enhancement** (Multiple environments):
+```yaml
+name: my-app
+services:
+  - name: app
+    type: nuxt
+    port: 3000
+
+environments:
+  development:
+    type: local
+    compose: ["docker-compose.yml", "docker-compose.dev.yml"]
+
+  staging:
+    type: remote
+    host: staging.example.com
+    compose: ["docker-compose.yml", "docker-compose.staging.yml"]
+
+  production:
+    type: remote
+    host: example.com
+    compose: ["docker-compose.yml", "docker-compose.prod.yml"]
+```
+
+## 5. SSL/TLS Strategy
 
 **Decision**: Traefik for reverse proxy + mkcert for local certs
 **Rationale**:

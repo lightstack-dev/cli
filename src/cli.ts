@@ -7,6 +7,8 @@ import { dirname, join } from 'path';
 import chalk from 'chalk';
 import updateNotifier from 'update-notifier';
 import { initCommand } from './commands/init.js';
+import { upCommand } from './commands/up.js';
+import { downCommand } from './commands/down.js';
 
 // Get package.json for version and update checks
 const __filename = fileURLToPath(import.meta.url);
@@ -41,10 +43,9 @@ program
   .command('init')
   .description('Initialize a new Lightstack project')
   .argument('[project-name]', 'Project name (defaults to current directory name)')
-  .option('--template <name>', 'Project template (nuxt, sveltekit)', 'nuxt')
   .option('--force', 'Overwrite existing configuration')
-  .action((projectName, options) => {
-    initCommand(projectName, options);
+  .action((projectName: string | undefined, options: unknown) => {
+    initCommand(projectName, options as { force?: boolean });
   });
 
 program
@@ -53,11 +54,8 @@ program
   .option('--env <name>', 'Environment to use', 'development')
   .option('--build', 'Force rebuild of containers')
   .option('--detach', 'Run in background', true)
-  .action((options) => {
-    console.log(chalk.red('❌ Error: Command not implemented yet'));
-    console.log('This will start the development environment');
-    console.log('Options:', options);
-    process.exit(1);
+  .action((options: unknown) => {
+    upCommand(options as { env?: string; build?: boolean; detach?: boolean });
   });
 
 program
@@ -67,7 +65,7 @@ program
   .option('--dry-run', 'Show what would be deployed without executing')
   .option('--build', 'Force rebuild before deployment')
   .option('--rollback', 'Rollback to previous deployment')
-  .action(async (environment, options) => {
+  .action((environment: string, options: unknown) => {
     console.log(chalk.red('❌ Error: Command not implemented yet'));
     console.log('This will deploy to environment:', environment);
     console.log('Options:', options);
@@ -78,7 +76,7 @@ program
   .command('status')
   .description('Show project and service status')
   .option('--format <format>', 'Output format (table, json)', 'table')
-  .action(async (options) => {
+  .action((options: unknown) => {
     console.log(chalk.red('❌ Error: Command not implemented yet'));
     console.log('This will show project status');
     console.log('Options:', options);
@@ -91,7 +89,7 @@ program
   .argument('[service]', 'Specific service name (defaults to all services)')
   .option('--follow', 'Follow log output in real-time')
   .option('--tail <lines>', 'Number of lines to show', '50')
-  .action(async (service, options) => {
+  .action((service: string | undefined, options: unknown) => {
     console.log(chalk.red('❌ Error: Command not implemented yet'));
     console.log('This will show logs for service:', service || 'all services');
     console.log('Options:', options);
@@ -102,11 +100,8 @@ program
   .command('down')
   .description('Stop development environment')
   .option('--volumes', 'Remove volumes as well (data loss warning)')
-  .action(async (options) => {
-    console.log(chalk.red('❌ Error: Command not implemented yet'));
-    console.log('This will stop the development environment');
-    console.log('Options:', options);
-    process.exit(1);
+  .action((options: unknown) => {
+    downCommand(options as { volumes?: boolean });
   });
 
 // Command aliases

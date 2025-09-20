@@ -35,7 +35,7 @@ Building a unified CLI tool that orchestrates development workflow from local de
 ## Technical Context
 **Language/Version**: TypeScript/Node.js 20+ (standard for modern CLI tools)
 **Primary Dependencies**: Commander.js (CLI framework), Docker SDK, Let's Encrypt client
-**Storage**: Local JSON config files (.lightstack/), environment variables
+**Storage**: Local JSON config files (.light/), user-managed .env files
 **Testing**: Vitest (fast, ESM-native test runner)
 **Documentation**: VitePress static site generator, deployed to https://cli.lightstack.dev
 **Target Platform**: macOS, Linux, Windows with WSL2
