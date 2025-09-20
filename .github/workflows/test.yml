@@ -44,8 +44,5 @@ jobs:
       run: bun run build
 
     - name: Run unit tests
-      run: bun run vitest run tests/unit/
-
-    - name: Run smoke tests
-      run: bun run vitest run tests/smoke/
+      run: bun run vitest run
 
