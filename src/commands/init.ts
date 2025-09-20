@@ -51,9 +51,9 @@ export function initCommand(projectName?: string, options: InitOptions = {}) {
     createDockerComposeFiles(project);
 
     // Success message
-    console.log(chalk.green('✓'), `Project '${name}' initialized`);
-    console.log(chalk.green('✓'), 'Docker Compose files generated');
-    console.log(chalk.green('✓'), 'Certificate directories created');
+    console.log(chalk.green('✅'), `Project '${name}' initialized`);
+    console.log(chalk.green('✅'), 'Docker Compose files generated');
+    console.log(chalk.green('✅'), 'Certificate directories created');
 
     console.log('\nNext steps:');
     console.log('  light up              # Start development');
@@ -88,6 +88,11 @@ services:
       - "80:80"
       - "443:443"
       - "8080:8080"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.proxy.rule=Host(\`proxy.lvh.me\`)"
+      - "traefik.http.routers.proxy.tls=true"
+      - "traefik.http.routers.proxy.service=api@internal"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
@@ -119,13 +124,15 @@ services:
   traefik:
     volumes:
       - ./certs:/certs:ro
+      - ./.light/traefik:/etc/traefik/dynamic:ro
     command:
       - --api.dashboard=true
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
-      - --providers.file.directory=/certs
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
 
   ${project.services[0]?.name || 'app'}:
     volumes:
@@ -157,3 +164,4 @@ services:
 
   writeFileSync('.light/docker-compose.prod.yml', prodCompose);
 }
+

@@ -1,0 +1,5 @@
+name: cli
+services:
+  - name: app
+    type: nuxt
+    port: 3000

@@ -103,11 +103,15 @@ Initiated → Building → Deploying → Health Check → Complete
 project-root/
 ├── light.config.yaml     # Main project configuration (YAML)
 ├── .env                  # User-managed environment variables (gitignored)
+├── supabase/             # Supabase project files (if using Supabase)
+│   └── config.toml       # Supabase configuration (used for detection)
 └── .light/               # CLI-generated files
     ├── docker-compose.yml     # Base Docker Compose configuration
     ├── docker-compose.dev.yml # Development overrides
     ├── docker-compose.prod.yml # Production overrides
     ├── certs/             # Local SSL certificates (mkcert)
+    ├── traefik/           # Traefik dynamic configuration
+    │   └── dynamic.yml    # BaaS proxy routes (generated when BaaS detected)
     └── deployments/       # Deployment history and state
 ```
 
@@ -123,7 +127,27 @@ Lightstack CLI generates Docker Compose files based on the project configuration
 
 - **Base file**: Common service definitions
 - **Environment overlays**: Environment-specific overrides
-- **Traefik labels**: Routing and SSL configuration
+- **Traefik routing**: Via file provider for SSL proxy configuration
+
+### BaaS Integration (Optional)
+When BaaS services are detected (e.g., Supabase), additional configuration is generated:
+
+**Detection Strategy**:
+- Check for `supabase/config.toml` → Supabase detected
+- Future: Check for other BaaS config files
+
+**Proxy Configuration Generation**:
+- Generated during `light up` command (just-in-time, always current)
+- Creates `.light/traefik/dynamic.yml` with SSL proxy routes
+- Maps clean domains (`api.lvh.me`) to localhost ports (`54321`)
+- Enables dev/prod parity without managing BaaS configuration
+- Uses Traefik file provider (not container labels) for cleaner separation
+
+**URL Strategy**:
+```
+Production:  https://api.yourproject.supabase.co
+Development: https://api.lvh.me → http://localhost:54321
+```
 
 ## Data Validation Rules
 

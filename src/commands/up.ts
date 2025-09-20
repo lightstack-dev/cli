@@ -1,6 +1,7 @@
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { execSync } from 'child_process';
 import chalk from 'chalk';
+import yaml from 'js-yaml';
 
 interface UpOptions {
   env?: string;
@@ -20,6 +21,9 @@ export function upCommand(options: UpOptions = {}) {
     // Check environment setup
     checkEnvironment(env);
 
+    // Generate BaaS proxy configs if needed
+    generateBaaSProxyConfigs();
+
     // Build Docker Compose command
     const composeFiles = getComposeFiles(env);
     const dockerCmd = buildDockerCommand(composeFiles, { build, detach });
@@ -33,12 +37,20 @@ export function upCommand(options: UpOptions = {}) {
     // Execute Docker Compose
     execSync(dockerCmd, { stdio: 'inherit' });
 
-    console.log(chalk.green('✓'), `${env} environment started`);
+    console.log(chalk.green('✅'), `${env} environment started`);
 
     if (env === 'development') {
       console.log('\nServices available at:');
       console.log('  https://app.lvh.me     # Main application');
-      console.log('  https://traefik.lvh.me # Traefik dashboard');
+      console.log('  https://proxy.lvh.me   # Proxy dashboard');
+
+      // Show BaaS URLs if detected
+      const detectedServices = detectBaaSServices();
+      if (detectedServices.includes('Supabase')) {
+        console.log('  https://api.lvh.me     # Supabase API');
+        console.log('  https://db.lvh.me      # Supabase Studio');
+        console.log('  https://storage.lvh.me # Supabase Storage');
+      }
     }
 
   } catch (error) {
@@ -64,6 +76,11 @@ function checkPrerequisites() {
   if (!existsSync('.light/docker-compose.yml')) {
     throw new Error('Docker Compose files not found. Run "light init" to regenerate them.');
   }
+
+  // Check if Dockerfile exists (required for building the app)
+  if (!existsSync('Dockerfile')) {
+    throw new Error('Dockerfile not found. See https://cli.lightstack.dev/getting-started for setup instructions.');
+  }
 }
 
 function checkEnvironment(env: string) {
@@ -71,8 +88,9 @@ function checkEnvironment(env: string) {
 
   // Check if .env file exists
   if (!existsSync('.env')) {
-    warnings.push('No .env file found. Using default values.');
-    warnings.push('Create a .env file to configure environment variables.');
+    console.log(chalk.blue('ℹ'), 'No .env file found. Using built-in defaults (PROJECT_NAME, APP_PORT=3000).');
+    console.log(chalk.blue('ℹ'), 'Create a .env file only if you need custom environment variables.');
+    console.log(); // Empty line for spacing
   } else {
     // If .env exists, check for commonly needed variables
     try {
@@ -146,4 +164,110 @@ function buildDockerCommand(
   const detachFlag = options.detach ? '-d' : '';
 
   return `docker compose ${fileArgs} ${envFileArg} up ${buildFlag} ${detachFlag}`.trim();
+}
+
+function generateBaaSProxyConfigs() {
+  const detectedServices = detectBaaSServices();
+
+  if (detectedServices.length === 0) {
+    return;
+  }
+
+  // Create traefik directory
+  mkdirSync('.light/traefik', { recursive: true });
+
+  // Generate dynamic configuration for detected BaaS services
+  const dynamicConfig = generateTraefikDynamicConfig(detectedServices);
+  writeFileSync('.light/traefik/dynamic.yml', dynamicConfig);
+
+  console.log(chalk.blue('ℹ'), `BaaS services detected. Generating proxy configuration (${detectedServices.join(', ')})...`);
+}
+
+function detectBaaSServices(): string[] {
+  const services: string[] = [];
+
+  // Check for Supabase
+  if (existsSync('supabase/config.toml')) {
+    services.push('Supabase');
+  }
+
+  // Future: Add other BaaS detection here
+  // if (existsSync('firebase.json')) services.push('Firebase');
+  // if (existsSync('amplify/.config/project-config.json')) services.push('Amplify');
+
+  return services;
+}
+
+interface TraefikRouter {
+  rule: string;
+  service: string;
+  tls: boolean;
+}
+
+interface TraefikService {
+  loadBalancer: {
+    servers: { url: string }[];
+  };
+}
+
+interface TraefikDynamicConfig {
+  http: {
+    routers: Record<string, TraefikRouter>;
+    services: Record<string, TraefikService>;
+  };
+}
+
+function generateTraefikDynamicConfig(services: string[]): string {
+  const config: TraefikDynamicConfig = {
+    http: {
+      routers: {},
+      services: {}
+    }
+  };
+
+  services.forEach(service => {
+    if (service === 'Supabase') {
+      // Supabase API
+      config.http.routers['supabase-api'] = {
+        rule: 'Host(`api.lvh.me`)',
+        service: 'supabase-api',
+        tls: true
+      };
+      config.http.services['supabase-api'] = {
+        loadBalancer: {
+          servers: [{ url: 'http://host.docker.internal:54321' }]
+        }
+      };
+
+      // Supabase Studio (Database UI)
+      config.http.routers['supabase-studio'] = {
+        rule: 'Host(`db.lvh.me`)',
+        service: 'supabase-studio',
+        tls: true
+      };
+      config.http.services['supabase-studio'] = {
+        loadBalancer: {
+          servers: [{ url: 'http://host.docker.internal:54323' }]
+        }
+      };
+
+      // Supabase Storage
+      config.http.routers['supabase-storage'] = {
+        rule: 'Host(`storage.lvh.me`)',
+        service: 'supabase-storage',
+        tls: true
+      };
+      config.http.services['supabase-storage'] = {
+        loadBalancer: {
+          servers: [{ url: 'http://host.docker.internal:54324' }]
+        }
+      };
+    }
+  });
+
+  return yaml.dump(config, {
+    indent: 2,
+    lineWidth: 80,
+    noRefs: true
+  });
 }

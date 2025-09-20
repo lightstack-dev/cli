@@ -133,24 +133,31 @@ environments:
 services:
   traefik:
     volumes:
-      - ./certs:/certs  # mkcert-generated certificates
-    labels:
-      - "traefik.http.routers.app.tls=true"
+      - ./certs:/certs:ro
+      - ./.light/traefik:/etc/traefik/dynamic:ro
+    command:
+      - --providers.file.directory=/etc/traefik/dynamic
 ```
 
-**Production**:
+**Dynamic Configuration** (`.light/traefik/dynamic.yml`):
 ```yaml
-# docker-compose.prod.yml
-services:
-  traefik:
-    labels:
-      - "traefik.http.routers.app.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.app.tls.domains[0].main=example.com"
+http:
+  routers:
+    app:
+      rule: "Host(`app.lvh.me`)"
+      service: app
+      tls: true
+    # BaaS routes generated when detected
+    supabase-api:
+      rule: "Host(`api.lvh.me`)"
+      service: supabase-api
+      tls: true
 ```
 
 **CLI's Role**:
 - Run `mkcert -install` and `mkcert "*.lvh.me"` for local setup
-- Generate proper Traefik labels in compose files
+- Generate Traefik dynamic configuration files (not container labels)
+- Detect BaaS services and generate appropriate proxy routes
 - Let Traefik handle the actual SSL management
 
 ## 5. CLI Self-Update Mechanism
@@ -178,23 +185,38 @@ async function selfUpdate() {
 
 ## 6. BaaS Integration Strategy
 
-**Decision**: No command passthrough - Lightstack CLI only handles its own commands
+**Decision**: Proxy integration for dev/prod parity, no command passthrough
 **Rationale**:
-- Single Responsibility Principle: CLI orchestrates development workflow only
-- Clear separation of concerns between tools
-- Prevents confusion about which tool handles what
-- Users interact directly with BaaS CLIs for their specific needs
-- Lightstack focuses on Docker orchestration and deployment
+- Single Responsibility Principle: CLI orchestrates proxying, doesn't manage BaaS config
+- Dev/prod parity: Same SSL domains locally and in production
+- Better UX: Subdomains instead of port numbers
+- Clear separation: BaaS CLIs manage services, Lightstack provides SSL proxy layer
 
-**Implementation Pattern**:
+**Developer Workflow**:
 ```bash
-# Lightstack handles its domain
-light up                    # Start Docker environment
-light deploy production     # Deploy application
+# 1. Initialize project structure (no BaaS needed yet)
+light init my-app           # Create basic project scaffolding
 
-# Users call BaaS tools directly
-supabase db reset          # Supabase handles its own commands
-supabase functions deploy  # Direct interaction, no passthrough
+# 2. BaaS setup (user responsibility, when needed)
+supabase init              # Initialize Supabase project
+supabase start              # Start local Supabase services
+
+# 3. Start development (auto-detects and configures proxies)
+light up                    # Detects BaaS, generates proxy configs, starts environment
+```
+
+**Proxy Implementation**:
+- **Detection**: Check for `supabase/config.toml` during `light up` (just-in-time)
+- **Configuration**: Generate Traefik file provider configs (not container labels)
+- **Routing**: Map SSL domains to localhost ports via `host.docker.internal`
+- **Always Current**: Proxy configs generated fresh each time based on current BaaS state
+
+**URL Mapping** (when Supabase detected):
+```
+https://api.lvh.me      → http://localhost:54321  (Supabase API)
+https://db.lvh.me       → http://localhost:54323  (Supabase Studio)
+https://storage.lvh.me  → http://localhost:54324  (Supabase Storage)
+https://app.lvh.me      → Your application
 ```
 
 **Command Boundaries**: Lightstack CLI only accepts defined commands (init, up, down, deploy, status, logs)

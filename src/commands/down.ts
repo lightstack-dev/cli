@@ -30,7 +30,7 @@ export function downCommand(options: DownOptions = {}) {
     // Execute Docker Compose
     execSync(dockerCmd, { stdio: 'inherit' });
 
-    console.log(chalk.green('✓'), 'Development environment stopped');
+    console.log(chalk.green('✅'), 'Development environment stopped');
 
     if (removeVolumes) {
       console.log(chalk.yellow('⚠️'), 'Volumes removed - data may be lost');
