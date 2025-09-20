@@ -1,0 +1,160 @@
+name: Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }} with Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [20, 22]
+      fail-fast: false
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node }}
+
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v1
+      with:
+        bun-version: latest
+
+    - name: Install dependencies
+      run: bun install
+
+    - name: Run lint
+      run: bun run lint
+
+    - name: Run type check
+      run: bun run typecheck
+
+    - name: Build project
+      run: bun run build
+
+    - name: Run unit tests
+      run: bun test tests/unit/
+
+    - name: Run integration tests
+      run: bun test tests/integration/
+
+    - name: Test CLI help command (smoke test)
+      run: node dist/cli.js --help
+      shell: bash
+
+    - name: Test CLI version command (smoke test)
+      run: node dist/cli.js --version
+      shell: bash
+
+  test-cli-workflow:
+    name: CLI Workflow Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    needs: test
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+      fail-fast: false
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v1
+      with:
+        bun-version: latest
+
+    - name: Install dependencies and build
+      run: |
+        bun install
+        bun run build
+
+    - name: Create test project directory
+      run: mkdir test-workflow
+      shell: bash
+
+    - name: Test CLI init command
+      run: node ../dist/cli.js init cross-platform-test
+      working-directory: test-workflow
+      shell: bash
+
+    - name: Verify project files were created
+      run: |
+        ls -la
+        test -f light.config.yaml
+        test -f .light/docker-compose.yml
+        test -f .light/docker-compose.dev.yml
+        test -f .light/docker-compose.prod.yml
+        test -d .light/certs
+      working-directory: test-workflow
+      shell: bash
+
+    - name: Verify YAML configuration is valid
+      run: |
+        if command -v yq &> /dev/null; then
+          yq eval '.name' light.config.yaml
+        else
+          echo "YAML validation skipped (yq not available)"
+        fi
+      working-directory: test-workflow
+      shell: bash
+
+    - name: Create mock Dockerfile for prerequisite check
+      run: |
+        cat > Dockerfile << 'EOF'
+        FROM node:20-alpine
+        WORKDIR /app
+        COPY package*.json ./
+        RUN npm install
+        COPY . .
+        EXPOSE 3000
+        CMD ["npm", "run", "dev"]
+        EOF
+      working-directory: test-workflow
+      shell: bash
+
+    - name: Test CLI up command (without Docker)
+      run: |
+        # This should fail gracefully when Docker is not running
+        # We're testing the validation and error handling
+        if node ../dist/cli.js up 2>&1 | grep -E "(Docker|Dockerfile)"; then
+          echo "✅ CLI properly validates prerequisites"
+        else
+          echo "❌ CLI validation failed"
+          exit 1
+        fi
+      working-directory: test-workflow
+      shell: bash
+
+    - name: Test CLI down command validation
+      run: |
+        # Test down command validation
+        if node ../dist/cli.js down 2>&1 | grep -E "(Docker|project)"; then
+          echo "✅ CLI down command works"
+        else
+          echo "❌ CLI down command failed"
+          exit 1
+        fi
+      working-directory: test-workflow
+      shell: bash
+
+    - name: Cleanup test directory
+      run: rm -rf test-workflow
+      shell: bash
