@@ -111,20 +111,42 @@ When ready for implementation, prioritize:
 
 ## Testing Strategy
 
+### Decided Approach: Unit Tests Only
+After extensive evaluation, we've decided to focus solely on unit tests for pure functions. Here's why:
+
+**What we test:**
+- Project name validation logic
+- Docker Compose YAML generation
+- Traefik configuration generation
+- BaaS service detection logic
+
+**What we DON'T test:**
+- CLI binary execution (smoke tests)
+- Docker orchestration (integration tests)
+- Full workflows (e2e tests)
+
+**Rationale:**
+- Unit tests catch logic bugs in code we actually wrote
+- CLI/Docker tests mostly validate that Node.js and Docker work
+- Real functionality requires manual testing with actual Docker environments
+- Maintenance overhead of complex CI tests outweighs benefits
+
 ### Test Structure
 ```
 tests/
-├── unit/          # Pure functions, utilities
-├── integration/   # Command execution, file generation
-└── e2e/           # Full workflow scenarios
+└── unit/          # Pure functions only
+    ├── project-validation.test.ts
+    ├── docker-compose.test.ts
+    ├── traefik-config.test.ts
+    └── baas-detection.test.ts
 ```
 
-### Key Test Areas
-- Configuration validation and schema compliance
-- Docker Compose file generation accuracy
-- Command flag parsing and validation
-- Error handling and user messaging
-- File system operations and cleanup
+### Manual Testing Required
+- Full `light init → up → down` workflow
+- Docker Compose file validity
+- Traefik routing and SSL
+- BaaS service integration
+- Cross-platform CLI execution
 
 ## Dependencies to Use
 
