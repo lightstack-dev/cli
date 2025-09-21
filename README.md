@@ -30,8 +30,8 @@ light init my-awesome-app
 # Start development environment
 light up
 
-# Deploy to production
-light deploy production
+# Deploy to production (coming soon)
+# light deploy production
 ```
 
 ## 📋 Requirements
@@ -65,10 +65,10 @@ cd my-project
 ```
 
 This creates:
-- `light.config.json` - Project configuration
-- Docker Compose files for dev and production
-- Environment variable templates
-- Local SSL certificates via mkcert
+- `light.config.yaml` - Project configuration (YAML for better readability)
+- Docker Compose files for development
+- Environment variable template (.env)
+- Local SSL setup with Traefik and mkcert
 
 ### Development
 
@@ -89,35 +89,9 @@ Access your services:
 - **App**: https://my-project.lvh.me
 - **Traefik Dashboard**: https://localhost:8080
 
-### Deployment
+### Deployment (Coming Soon)
 
-#### Configure Production Target
-
-Edit `light.config.json`:
-```json
-{
-  "deployments": [
-    {
-      "name": "production",
-      "host": "your-server.com",
-      "domain": "myapp.com",
-      "ssl": {
-        "enabled": true,
-        "provider": "letsencrypt",
-        "email": "you@example.com"
-      }
-    }
-  ]
-}
-```
-
-#### Deploy
-
-```bash
-light deploy production
-```
-
-Handles everything:
+The `light deploy` command is under development. Once complete, it will handle:
 - Docker image building
 - File upload to server
 - Traefik configuration with Let's Encrypt
@@ -127,12 +101,14 @@ Handles everything:
 ### Other Commands
 
 ```bash
-light status          # Show service status
-light logs             # View all service logs
-light logs my-app      # View specific service logs
 light down             # Stop development environment
 light --help           # Show all available commands
 light --version        # Show CLI version
+
+# Coming soon:
+light status           # Show service status
+light logs             # View all service logs
+light logs my-app      # View specific service logs
 ```
 
 **Note**: Lightstack CLI focuses on orchestrating your development workflow. It does not pass through commands to other tools. Use BaaS CLIs (Supabase, PocketBase, etc.) directly for their specific operations.
@@ -141,45 +117,26 @@ light --version        # Show CLI version
 
 ### Project Configuration
 
-`light.config.json`
-```json
-{
-  "name": "my-project",
-  "type": "nuxt",
-  "services": [
-    {
-      "name": "my-app",
-      "type": "frontend",
-      "port": 3000,
-      "buildCommand": "npm run build",
-      "startCommand": "npm run preview"
-    }
-  ],
-  "deployments": [
-    {
-      "name": "production",
-      "host": "your-server.com",
-      "domain": "myapp.com",
-      "ssl": {
-        "enabled": true,
-        "provider": "letsencrypt",
-        "email": "admin@myapp.com"
-      }
-    }
-  ]
-}
+`light.config.yaml`
+```yaml
+name: my-project
+type: nuxt
+services:
+  - name: my-app
+    type: frontend
+    port: 3000
+    buildCommand: npm run build
+    startCommand: npm run preview
+# Deployments configuration coming soon
 ```
 
 ### Environment Variables
 
 ```bash
-# .env.development
+# .env (single file for all environments)
+PROJECT_NAME=my-project
+APP_PORT=3000
 NODE_ENV=development
-PORT=3000
-
-# .env.production
-NODE_ENV=production
-PORT=3000
 ```
 
 ## 🏗️ Architecture
@@ -216,12 +173,24 @@ This CLI is part of the [Lightstack](https://github.com/lightstack-dev) ecosyste
 
 ## 🛣️ Roadmap
 
+### Completed ✅
+- [x] Project initialization (`light init`)
+- [x] Development environment (`light up`)
+- [x] Environment shutdown (`light down`)
 - [x] Docker Compose orchestration
 - [x] Traefik SSL automation
-- [x] VPS deployment
+- [x] BaaS detection (Supabase)
+- [x] YAML configuration
+
+### In Progress 🚧
+- [ ] Production deployment (`light deploy`)
+- [ ] Service status monitoring (`light status`)
+- [ ] Log aggregation (`light logs`)
+
+### Future 🔮
 - [ ] GitHub Actions generation
 - [ ] Multi-environment support
-- [ ] Plugin system for custom services
+- [ ] Additional BaaS integrations
 
 ## 💻 Development
 
@@ -236,6 +205,9 @@ npm run dev
 
 # Run tests
 npm test
+
+# Run tests with Bun (alternative)
+bun run vitest
 
 # Build for production
 npm run build
