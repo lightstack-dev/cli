@@ -3,7 +3,7 @@ import { execSync } from 'child_process';
 import chalk from 'chalk';
 import yaml from 'js-yaml';
 import { setupMkcert, generateTraefikTlsConfig } from '../utils/mkcert.js';
-import { getProjectConfig } from '../utils/config.js';
+import { getProjectConfig, type ServiceConfig } from '../utils/config.js';
 
 interface UpOptions {
   env?: string;
@@ -243,7 +243,7 @@ function setupLocalSsl(): void {
   }
 }
 
-function generateTraefikDynamicConfig(appServices: any[], baasServices: string[]): string {
+function generateTraefikDynamicConfig(appServices: ServiceConfig[], baasServices: string[]): string {
   const config: TraefikDynamicConfig = {
     http: {
       routers: {},

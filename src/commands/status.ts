@@ -14,6 +14,21 @@ interface ServiceStatus {
   url?: string;
 }
 
+interface DockerPublisher {
+  PublishedPort: number;
+  TargetPort: number;
+  URL?: string;
+  Protocol: string;
+}
+
+interface DockerContainer {
+  Service?: string;
+  Name?: string;
+  State?: string;
+  Status?: string;
+  Publishers?: DockerPublisher[];
+}
+
 export function statusCommand(options: StatusOptions = {}) {
   try {
     const format = options.format || 'table';
@@ -72,15 +87,15 @@ function getDockerComposeStatus(): ServiceStatus[] {
 
     lines.forEach(line => {
       try {
-        const container = JSON.parse(line);
+        const container = JSON.parse(line) as DockerContainer;
         const service: ServiceStatus = {
           name: container.Service || container.Name || 'unknown',
-          status: getServiceStatus(container.State || container.Status),
+          status: getServiceStatus(container.State || container.Status || 'unknown'),
         };
 
         // Extract port if available
         if (container.Publishers && Array.isArray(container.Publishers)) {
-          const webPort = container.Publishers.find((p: any) =>
+          const webPort = container.Publishers.find((p: DockerPublisher) =>
             p.PublishedPort === 443 || p.PublishedPort === 80 || p.PublishedPort === 3000
           );
           if (webPort) {
