@@ -2,43 +2,72 @@
 
 # Lightstack CLI
 
-> Focused orchestration for Lightstack development workflows
+> Bridge localhost and production with identical infrastructure patterns
 
 [![npm version](https://img.shields.io/npm/v/@lightstack-dev/cli.svg)](https://www.npmjs.com/package/@lightstack-dev/cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Bridge the gap between `localhost` and production. Lightstack CLI orchestrates your development workflow by generating Docker Compose configurations and leveraging battle-tested tools like Traefik, mkcert, and Docker.
+**Development-to-production infrastructure orchestrator.** Lightstack CLI gives you production-grade patterns in development (HTTPS, reverse proxy, service routing), then deploys with identical infrastructure to production. No surprises, perfect dev/prod parity.
 
 ## ✨ Features
 
-- 🚀 **One Command Start** - Launch your entire stack with `light up`
-- 🔒 **SSL Everywhere** - HTTPS in development and production
-- 📦 **Smart Orchestration** - Coordinates services via Docker Compose
-- 🌍 **Deploy Anywhere** - Push to any Docker-compatible VPS
-- ⚙️ **Configuration First** - Generate files you can understand and modify
-- 🎯 **Focused Scope** - Does one thing well: orchestration
+### Development Experience
+- 🔒 **Production-grade HTTPS** - Real SSL certificates in development
+- 🌐 **Clean URLs** - `https://app.lvh.me` instead of `localhost:3000`
+- 🔄 **Service discovery** - Auto-proxy BaaS services with consistent URLs
+- 🚀 **Zero disruption** - Keep your existing `npm run dev` workflow
+
+### Production Deployment
+- 🌍 **Identical infrastructure** - Same Traefik config, different targets
+- 📦 **Docker orchestration** - Generate production-ready Docker Compose
+- 🔐 **Let's Encrypt SSL** - Automatic HTTPS certificates in production
+- 🚀 **Zero-downtime deploys** - Rolling updates with health checks
+
+### Developer Experience
+- ⚡ **Dev/prod parity** - What works locally works in production
+- 📝 **Infrastructure as code** - Readable, modifiable configurations
+- 🎯 **Gradual complexity** - Start simple, scale to multi-environment
 
 ## 🚀 Quick Start
 
+### Local Development
 ```bash
 # Install globally
 npm install -g @lightstack-dev/cli
 
-# Initialize in your project
-light init my-awesome-app
+# In your existing project
+light init
 
-# Start development environment
+# Start production-grade local environment
 light up
 
-# Deploy to production (coming soon)
-# light deploy production
+# Start your app normally (separate terminal)
+npm run dev
+
+# Access via HTTPS: https://app.lvh.me
+```
+
+### Production Deployment
+```bash
+# Configure deployment target
+light init --production
+
+# Deploy with identical infrastructure
+light deploy production
+
+# Your app is live with same URLs, same SSL, same routing
 ```
 
 ## 📋 Requirements
 
+### Development
 - Node.js 20+
-- Docker Desktop (for local development and deployment)
-- Git
+- Docker Desktop (for local proxy infrastructure)
+- [mkcert](https://github.com/FiloSottile/mkcert) (auto-installed, for local HTTPS)
+
+### Production (Optional)
+- Docker-compatible VPS or cloud server
+- Domain name for your application
 
 ## 🛠️ Installation
 
@@ -57,37 +86,47 @@ npx light init
 
 ## 📖 Usage
 
-### Initialize a New Project
+### Initialize Proxy Configuration
 
 ```bash
-light init my-project
-cd my-project
+light init
 ```
 
 This creates:
-- `light.config.yaml` - Project configuration (YAML for better readability)
-- Docker Compose files for development
-- Environment variable template (.env)
-- Local SSL setup with Traefik and mkcert
+- `light.config.yaml` - Proxy configuration
+- `.light/` directory with Traefik configuration
 
-### Development
-
-Start your complete development environment:
+### Development Workflow
 
 ```bash
+# 1. Start the proxy (only needs to be done once)
 light up
+
+# 2. Start your app normally (separate terminal)
+npm run dev
+# or: yarn dev, bun dev, pnpm dev, etc.
+
+# 3. Access via nice URLs
+# https://app.lvh.me → your app
+# https://router.lvh.me → routing dashboard
 ```
 
-This command:
-- ✅ Validates Docker is running
-- ✅ Starts Traefik reverse proxy with SSL
-- ✅ Starts your application services
-- ✅ Runs health checks
-- ✅ Displays service URLs
+**With Supabase** (auto-detected):
+```bash
+# Start Supabase normally
+supabase start
 
-Access your services:
-- **App**: https://my-project.lvh.me
-- **Traefik Dashboard**: https://localhost:8080
+# Start Lightstack proxy
+light up
+
+# Start your app
+npm run dev
+
+# Access everything via HTTPS:
+# https://app.lvh.me → your app
+# https://api.lvh.me → Supabase API
+# https://studio.lvh.me → Supabase Studio
+```
 
 ### Deployment (Coming Soon)
 
@@ -101,17 +140,20 @@ The `light deploy` command is under development. Once complete, it will handle:
 ### Other Commands
 
 ```bash
-light down             # Stop development environment
+light down             # Stop proxy
+light status           # Show proxy and service status
+light logs             # View proxy logs
+light logs traefik     # View specific service logs
 light --help           # Show all available commands
 light --version        # Show CLI version
 
-# Coming soon:
-light status           # Show service status
-light logs             # View all service logs
-light logs my-app      # View specific service logs
+# Aliases
+light start            # Same as "light up"
+light stop             # Same as "light down"
+light ps               # Same as "light status"
 ```
 
-**Note**: Lightstack CLI focuses on orchestrating your development workflow. It does not pass through commands to other tools. Use BaaS CLIs (Supabase, PocketBase, etc.) directly for their specific operations.
+**Note**: Lightstack CLI only handles local development proxying. Use your existing tools normally (`npm run dev`, `supabase start`, etc.).
 
 ## 🔧 Configuration
 
@@ -120,45 +162,73 @@ light logs my-app      # View specific service logs
 `light.config.yaml`
 ```yaml
 name: my-project
-type: nuxt
 services:
-  - name: my-app
-    type: frontend
+  - name: app         # Creates https://app.lvh.me
+    type: nuxt
     port: 3000
-    buildCommand: npm run build
-    startCommand: npm run preview
-# Deployments configuration coming soon
+  - name: admin       # Creates https://admin.lvh.me
+    type: react
+    port: 4000
 ```
 
-### Environment Variables
+### Domain Configuration (Optional)
+
+```yaml
+name: my-project
+domain: lvh.me        # Default, or use custom.dev, localhost.test, etc.
+services:
+  - name: app
+    port: 3000
+    # Results in: https://app.{domain}
+```
+
+### Environment Variables (Optional)
 
 ```bash
-# .env (single file for all environments)
+# .env
 PROJECT_NAME=my-project
-APP_PORT=3000
-NODE_ENV=development
 ```
 
 ## 🏗️ Architecture
 
-Lightstack CLI generates configuration for existing tools:
+**Development-to-production infrastructure consistency:**
 
+### Local Development
 ```
-Your Project → Lightstack CLI → Generated Files → Existing Tools
-                    ↓
-            docker-compose.yml → Docker Compose
-            traefik.yml → Traefik (SSL/routing)
-            .github/workflows/ → GitHub Actions
+Your App (localhost:3000) ← Traefik Proxy ← https://app.lvh.me
+Supabase (localhost:54321) ← Traefik Proxy ← https://api.lvh.me
 ```
 
-**Philosophy**: Orchestrate, don't reimplement.
+### Production Deployment
+```
+Your App (Docker container) ← Traefik Proxy ← https://yourdomain.com
+Database (managed service) ← Traefik Proxy ← https://api.yourdomain.com
+```
+
+**Key principles:**
+- **Same proxy technology** (Traefik) in dev and production
+- **Same SSL approach** (mkcert locally, Let's Encrypt in production)
+- **Same routing patterns** (functional subdomains, service discovery)
+- **Same configuration files** (Docker Compose with environment overrides)
+
+**Dev/prod parity means:**
+- If routing works locally, it works in production
+- SSL configuration is identical between environments
+- Service discovery patterns are consistent
+- No "works on my machine" surprises
 
 ## 🛠️ Works With
 
-- **Frameworks**: Nuxt, SvelteKit, Next.js, React, Vue
-- **BaaS**: Supabase, PocketBase, Appwrite (use their CLIs directly)
-- **Deployment**: Any VPS with Docker support
-- **CI/CD**: GitHub Actions, GitLab CI, Jenkins
+### Development
+- **Any web framework** that runs on localhost (React, Vue, Nuxt, Next.js, SvelteKit, etc.)
+- **BaaS services**: Supabase, PocketBase, Appwrite, Firebase (auto-detected and proxied)
+- **Your existing tools**: Keep using `npm run dev`, `supabase start`, etc.
+
+### Production
+- **Any Docker-compatible server** (VPS, cloud instances, dedicated servers)
+- **Container registries**: Docker Hub, GitHub Container Registry, AWS ECR
+- **Domain management**: Cloudflare, Route53, any DNS provider
+- **Database services**: Managed PostgreSQL, MongoDB Atlas, PlanetScale
 
 ## 📚 Documentation
 
@@ -174,23 +244,22 @@ This CLI is part of the [Lightstack](https://github.com/lightstack-dev) ecosyste
 ## 🛣️ Roadmap
 
 ### Completed ✅
-- [x] Project initialization (`light init`)
-- [x] Development environment (`light up`)
-- [x] Environment shutdown (`light down`)
-- [x] Docker Compose orchestration
-- [x] Traefik SSL automation
-- [x] BaaS detection (Supabase)
-- [x] YAML configuration
+- [x] **Local development**: Production-grade proxy with HTTPS
+- [x] **Service discovery**: Auto-detect and proxy BaaS services
+- [x] **Infrastructure consistency**: Same Traefik patterns dev to prod
+- [x] **Configuration management**: Type-safe config with validation
+- [x] **Basic deployment**: Docker Compose generation and deployment structure
+- [x] **Monitoring**: Service status and log aggregation
 
 ### In Progress 🚧
-- [ ] Production deployment (`light deploy`)
-- [ ] Service status monitoring (`light status`)
-- [ ] Log aggregation (`light logs`)
+- [ ] **Production deployment**: Full zero-downtime deployment pipeline
+- [ ] **Multi-environment**: Staging, preview environments
+- [ ] **Additional BaaS**: Firebase, PocketBase auto-detection
 
 ### Future 🔮
-- [ ] GitHub Actions generation
-- [ ] Multi-environment support
-- [ ] Additional BaaS integrations
+- [ ] **CI/CD integration**: GitHub Actions, GitLab CI templates
+- [ ] **Monitoring & observability**: Metrics, tracing, alerting
+- [ ] **Team collaboration**: Shared environments, config templates
 
 ## 💻 Development
 

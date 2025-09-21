@@ -2,7 +2,7 @@ import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { basename } from 'path';
 import chalk from 'chalk';
 import yaml from 'js-yaml';
-import type { Project } from '../models/index.js';
+import type { ProjectConfig } from '../utils/config.js';
 
 interface InitOptions {
   force?: boolean;
@@ -24,7 +24,7 @@ export function initCommand(projectName?: string, options: InitOptions = {}) {
     }
 
     // Create project configuration
-    const project: Project = {
+    const project: ProjectConfig = {
       name,
       services: [
         {
@@ -52,12 +52,21 @@ export function initCommand(projectName?: string, options: InitOptions = {}) {
 
     // Success message
     console.log(chalk.green('✅'), `Project '${name}' initialized`);
-    console.log(chalk.green('✅'), 'Docker Compose files generated');
-    console.log(chalk.green('✅'), 'Certificate directories created');
+    console.log(chalk.green('✅'), 'Proxy configuration created');
 
-    console.log('\nNext steps:');
-    console.log('  light up              # Start development');
-    console.log('  supabase init         # Set up Supabase (if using)');
+    console.log('\n' + chalk.bold('Next steps:'));
+    console.log('  1. Start the proxy:');
+    console.log('     light up');
+    console.log('');
+    console.log('  2. Start your app:');
+    console.log('     npm run dev');
+    console.log('     # (or yarn dev, bun dev, etc.)');
+    console.log('');
+    console.log('  3. Access your app:');
+    console.log('     https://app.lvh.me');
+    console.log('     https://router.lvh.me  (routing management)');
+
+    console.log('\n' + chalk.gray('Optional: Set up BaaS services (Supabase, etc.) to get automatic proxying'));
 
   } catch (error) {
     console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : 'Unknown error');
@@ -70,41 +79,26 @@ function isValidProjectName(name: string): boolean {
   return /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/.test(name);
 }
 
-function createDockerComposeFiles(project: Project) {
-  // Base docker-compose.yml
+function createDockerComposeFiles(project: ProjectConfig) {
+  // Base docker-compose.yml - Only Traefik, no app containers
   const baseCompose = `services:
   traefik:
     image: traefik:v3.0
-    container_name: \${PROJECT_NAME:-${project.name}}-traefik
+    container_name: \${PROJECT_NAME:-${project.name}}-proxy
     command:
       - --api.dashboard=true
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
     ports:
       - "80:80"
       - "443:443"
       - "8080:8080"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.proxy.rule=Host(\`proxy.lvh.me\`)"
-      - "traefik.http.routers.proxy.tls=true"
-      - "traefik.http.routers.proxy.service=api@internal"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - lightstack
-
-  ${project.services[0]?.name || 'app'}:
-    build: .
-    container_name: \${PROJECT_NAME:-${project.name}}-${project.services[0]?.name || 'app'}
-    ports:
-      - "\${APP_PORT:-3000}:3000"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.${project.services[0]?.name || 'app'}.rule=Host(\`${project.services[0]?.name || 'app'}.lvh.me\`)"
-      - "traefik.http.routers.${project.services[0]?.name || 'app'}.tls=true"
+      - ./.light/traefik:/etc/traefik/dynamic:ro
     networks:
       - lightstack
 
@@ -119,21 +113,13 @@ networks:
   const devCompose = `services:
   traefik:
     volumes:
-      - ./certs:/certs:ro
+      - ./.light/certs:/certs:ro
       - ./.light/traefik:/etc/traefik/dynamic:ro
-    command:
-      - --api.dashboard=true
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --entrypoints.web.address=:80
-      - --entrypoints.websecure.address=:443
-      - --providers.file.directory=/etc/traefik/dynamic
-      - --providers.file.watch=true
-
-  ${project.services[0]?.name || 'app'}:
-    volumes:
-      - .:/app:cached
-      - /app/node_modules
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.router.rule=Host(\`router.lvh.me\`)"
+      - "traefik.http.routers.router.tls=true"
+      - "traefik.http.routers.router.service=api@internal"
 `;
 
   writeFileSync('.light/docker-compose.dev.yml', devCompose);
