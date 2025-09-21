@@ -48,7 +48,7 @@ A deployment target represents where the application can be deployed.
 - Targets can have different SSL configurations
 
 ### Environment Configuration
-Environment-specific deployment configuration (not environment variables).
+Environment-specific deployment configuration that maps to deployment targets.
 
 **What it contains:**
 - Deployment target type (local, remote)
@@ -56,9 +56,35 @@ Environment-specific deployment configuration (not environment variables).
 - Runtime configuration (not secrets)
 
 **Key rules:**
-- Environment configuration stored in light.config.json only
+- Environment names must match deployment target names
 - Environment variables managed separately by users
 - Each environment defines its Docker Compose file strategy
+
+**Example Configuration (light.config.yaml):**
+```yaml
+name: my-project
+services:
+  - name: app
+    type: nuxt
+    port: 3000
+
+deployments:
+  - name: development    # light up --env development
+    type: local
+    domain: lvh.me
+  - name: staging        # light up --env staging
+    type: remote
+    host: staging.myproject.com
+    domain: staging.myproject.com
+  - name: production     # light up --env production
+    type: remote
+    host: myproject.com
+    domain: myproject.com
+  - name: uat           # light up --env uat
+    type: remote
+    host: uat.myproject.com
+    domain: uat.myproject.com
+```
 
 ## Relationships
 

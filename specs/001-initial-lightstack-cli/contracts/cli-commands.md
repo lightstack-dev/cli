@@ -62,9 +62,15 @@ Next steps:
 **Purpose**: Start development environment (local or remote via `--env` flag)
 
 **Inputs**:
-- `--env <name>`: Environment to use, defaults to 'development'
+- `--env <name>`: Deployment target environment from light.config.yaml (e.g., development, production, staging, uat)
 - `--build`: Force rebuild of containers
 - `--detach`: Run in background (default: true)
+
+**Environment Resolution**:
+- Values come from configured `deployments` in light.config.yaml
+- Defaults to first deployment target if none specified (typically 'development')
+- Error if specified environment not found in configuration
+- Environment determines which Docker Compose overrides to use (dev.yml, prod.yml, staging.yml, etc.)
 
 **Behavior**:
 1. Validate Lightstack project exists (light.config.json)
@@ -98,10 +104,11 @@ All services running. Press Ctrl+C to stop.
 **Purpose**: Deploy application to specified environment
 
 **Inputs**:
-- `environment` (optional): Target environment, defaults to 'production'
+- `environment` (optional): Deployment target from light.config.yaml, defaults to 'production'
 - `--dry-run`: Show what would be deployed without executing
 - `--build`: Force rebuild before deployment
 - `--rollback`: Rollback to previous deployment
+- `--tag <git-tag>`: Specific git tag to deploy (optional, defaults to current commit)
 
 **Behavior** (GitOps Approach):
 1. Validate target environment exists in configuration
@@ -113,6 +120,19 @@ All services running. Press Ctrl+C to stop.
 7. Run health checks and report deployment status
 
 **Key Innovation**: Same `light up` command works locally and remotely - perfect dev/prod parity
+
+**Example Usage**:
+```bash
+# Deploy to different configured environments
+light deploy staging --tag v1.2.3
+light deploy uat --tag v1.3.0-beta
+light deploy production --tag v1.2.3
+
+# What happens on each target server:
+ssh staging.myproject.com "cd /opt/project && git checkout v1.2.3 && light up --env staging"
+ssh uat.myproject.com "cd /opt/project && git checkout v1.3.0-beta && light up --env uat"
+ssh myproject.com "cd /opt/project && git checkout v1.2.3 && light up --env production"
+```
 
 **Success Output**:
 ```
