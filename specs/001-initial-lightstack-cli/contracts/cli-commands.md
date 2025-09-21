@@ -59,7 +59,7 @@ Next steps:
 
 ### `light up`
 
-**Purpose**: Start local development environment
+**Purpose**: Start development environment (local or remote via `--env` flag)
 
 **Inputs**:
 - `--env <name>`: Environment to use, defaults to 'development'
@@ -103,26 +103,30 @@ All services running. Press Ctrl+C to stop.
 - `--build`: Force rebuild before deployment
 - `--rollback`: Rollback to previous deployment
 
-**Behavior**:
+**Behavior** (GitOps Approach):
 1. Validate target environment exists in configuration
-2. Validate deployment prerequisites (SSH access, Docker on target)
-3. Build application containers
-4. Generate production Docker Compose files
-5. Upload files to target server
-6. Execute deployment with zero-downtime strategy
-7. Run health checks
-8. Report deployment status
+2. Validate deployment prerequisites (SSH access, Docker on target, git repository)
+3. SSH to target server
+4. Navigate to project directory (`cd /opt/project`)
+5. Checkout specified git tag/commit (`git checkout v1.2.3`)
+6. Execute identical command remotely (`light up --env production`)
+7. Run health checks and report deployment status
+
+**Key Innovation**: Same `light up` command works locally and remotely - perfect dev/prod parity
 
 **Success Output**:
 ```
-✓ Building containers...
-✓ Uploading to production server
-✓ Deploying with zero downtime
+✓ Connecting to production server (myapp.com)
+✓ Checking out git tag v1.2.3
+✓ Starting production environment (light up --env production)
+✓ Complete BaaS stack deployed (PostgreSQL, Auth, API, Storage, Studio)
 ✓ Health checks passed
 ✓ Deployment complete
 
 Application available at: https://myapp.com
-Deployment ID: dep_2025091801
+BaaS API available at: https://api.myapp.com
+Database Studio at: https://studio.myapp.com
+Git tag deployed: v1.2.3
 ```
 
 **Error Conditions**:

@@ -54,14 +54,14 @@ When creating this spec from a user prompt:
 ## User Scenarios & Testing *(mandatory)*
 
 ### Primary User Story
-As a developer working with BaaS platforms, I need a unified CLI tool that orchestrates my entire development workflow from local development through production deployment, bridging the gap between localhost and production environments with minimal configuration and maximum automation.
+As a developer working with BaaS platforms, I need a CLI tool that enables me to self-host my entire BaaS stack (database, auth, API, storage) both locally and in production, escaping vendor lock-in and high costs while maintaining perfect dev/prod parity and complete data sovereignty.
 
 ### Acceptance Scenarios
-1. **Given** a new project folder, **When** developer runs initialization command, **Then** the CLI creates appropriate configuration structure and detects available services
-2. **Given** an initialized project, **When** developer runs development command, **Then** all necessary services start in correct order with proper orchestration
-3. **Given** a configured project, **When** developer runs deployment command with target environment, **Then** application deploys successfully with SSL and health checks
-4. **Given** existing BaaS CLI commands, **When** developer uses them through Lightstack, **Then** commands pass through unchanged to underlying tools
-5. **Given** a deployment target, **When** deployment process runs, **Then** zero-downtime deployment executes with automatic rollback on failure
+1. **Given** a new project folder, **When** developer runs initialization command, **Then** the CLI creates configuration for self-hosted BaaS stack with production-grade SSL
+2. **Given** an initialized project, **When** developer runs development command, **Then** complete self-hosted BaaS stack starts (PostgreSQL, Auth, API, Storage, Studio) with HTTPS proxy
+3. **Given** a project with self-hosted BaaS, **When** developer deploys to production, **Then** identical BaaS stack deploys to remote server with Let's Encrypt SSL
+4. **Given** a production deployment, **When** deployment completes, **Then** all services accessible via HTTPS with automatic health checks and rollback capability
+5. **Given** a need to escape vendor costs, **When** developer switches from hosted to self-hosted, **Then** data migration and identical functionality preserved
 
 ### Edge Cases
 - **Docker not available**: System shows clear error message with Docker installation instructions and exits gracefully
@@ -99,6 +99,16 @@ As a developer working with BaaS platforms, I need a unified CLI tool that orche
 - **FR-019**: System MUST generate CI/CD configuration files for automated deployments (modular adapter pattern, starting with GitHub Actions)
 - **FR-020**: System MUST configure repository secrets and deployment tokens for CI/CD automation
 - **FR-021**: Generated CI/CD workflows MUST trigger deployments automatically on configured events (push to main, pull request merge)
+
+### Self-Hosted BaaS Requirements *(core value proposition)*
+- **FR-022**: System MUST support optional self-hosted Supabase stack deployment (PostgreSQL, Auth, API, Storage, Studio)
+- **FR-023**: System MUST provide identical BaaS stack in development and production environments
+- **FR-024**: System MUST enable cost-effective alternative to hosted BaaS pricing
+- **FR-025**: System MUST preserve complete data sovereignty (user's servers, user's database)
+- **FR-026**: System MUST support migration from hosted to self-hosted BaaS configurations
+- **FR-027**: System MUST handle PostgreSQL data persistence in production with backup strategies
+- **FR-028**: System MUST integrate Supabase CLI migration system for schema management
+- **FR-029**: System MUST support GitOps deployment (deploy via git tags, not file transfer)
 
 ### Key Entities *(include if feature involves data)*
 - **Project Configuration**: Represents project-specific settings including local development options, deployment targets, and service configurations

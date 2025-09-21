@@ -129,25 +129,42 @@ Lightstack CLI generates Docker Compose files based on the project configuration
 - **Environment overlays**: Environment-specific overrides
 - **Traefik routing**: Via file provider for SSL proxy configuration
 
-### BaaS Integration (Optional)
-When BaaS services are detected (e.g., Supabase), additional configuration is generated:
+### Complete Self-Hosted BaaS Stack (Optional)
+When BaaS services are detected (e.g., Supabase), Lightstack deploys the complete self-hosted stack:
 
 **Detection Strategy**:
-- Check for `supabase/config.toml` → Supabase detected
-- Future: Check for other BaaS config files
+- Check for `supabase/config.toml` → Self-hosted Supabase stack enabled
+- Future: Check for other BaaS config files (PocketBase, Appwrite)
 
-**Proxy Configuration Generation**:
-- Generated during `light up` command (just-in-time, always current)
-- Creates `.light/traefik/dynamic.yml` with SSL proxy routes
-- Maps clean domains (`api.lvh.me`) to localhost ports (`54321`)
-- Enables dev/prod parity without managing BaaS configuration
-- Uses Traefik file provider (not container labels) for cleaner separation
+**Complete Supabase Stack Deployment**:
+- **PostgreSQL Database** with persistent volumes and proper backup procedures
+- **Supabase Auth (GoTrue)** for authentication and user management
+- **Supabase API (PostgREST)** for database REST API
+- **Supabase Storage** for file storage and management
+- **Supabase Studio** for database administration interface
+- **Supabase Realtime** for WebSocket subscriptions
+- **Kong API Gateway** for request routing and security
+- **Additional services**: Image proxy, edge functions, analytics
 
-**URL Strategy**:
+**Infrastructure Strategy**:
+- Generate complete Docker Compose with 10+ Supabase services
+- Development: All services containerized with development settings
+- Production: Same containers with production settings and persistent volumes
+- Traefik handles SSL termination and routing to all services
+
+**URL Strategy (Self-Hosted)**:
 ```
-Production:  https://api.yourproject.supabase.co
-Development: https://api.lvh.me → http://localhost:54321
+Development:                Production:
+https://studio.lvh.me      →  https://studio.yourdomain.com
+https://api.lvh.me         →  https://api.yourdomain.com
+https://storage.lvh.me     →  https://storage.yourdomain.com
+https://app.lvh.me         →  https://yourdomain.com
 ```
+
+**Database Persistence**:
+- Development: PostgreSQL data in local Docker volumes
+- Production: PostgreSQL data in persistent server volumes with backup strategy
+- Migrations: Supabase migration files applied to both environments identically
 
 ## Data Validation Rules
 
@@ -178,6 +195,41 @@ Development: https://api.lvh.me → http://localhost:54321
 ```bash
 light migrate                    # Check for needed migrations
 light migrate --from=1.0 --to=1.1  # Execute specific migration
+```
+
+## Database Persistence Strategy
+
+### Development Environment
+- **PostgreSQL container** with Docker named volumes
+- **Ephemeral by default** - reset with `light down --volumes`
+- **Schema migrations** managed by Supabase CLI
+- **Test data seeding** automated on startup
+
+### Production Environment
+- **PostgreSQL container** with persistent named volumes
+- **Automated backups** via scheduled Docker volume snapshots
+- **Data retention** following organization policies
+- **Migration strategy** using Supabase CLI in production
+- **Rollback capability** preserving database state
+
+### Data Migration Path
+```bash
+# Hosted to Self-Hosted Migration
+pg_dump hosted_db_url > backup.sql
+light up --env production
+psql self_hosted_db_url < backup.sql
+```
+
+### Volume Management
+```yaml
+# Production Docker Compose
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /var/lib/lightstack/postgres
+      o: bind
 ```
 
 ## Error Handling

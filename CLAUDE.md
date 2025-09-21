@@ -2,13 +2,16 @@
 
 ## Project Overview
 
-**Lightstack CLI** (`@lightstack-dev/cli`) is a development-to-production infrastructure orchestrator that bridges localhost and production with identical patterns. It provides production-grade infrastructure in development (HTTPS, reverse proxy, service routing) and deploys with the same infrastructure to production, ensuring perfect dev/prod parity.
+**Lightstack CLI** (`@lightstack-dev/cli`) is a **complete self-hosted BaaS deployment platform**. It solves the fundamental problem: Supabase CLI only works for development, but you want to self-host your entire BaaS stack in production to escape vendor costs and maintain data control.
+
+**THE CORE VALUE**: Deploy your complete local Supabase development environment (PostgreSQL + Auth + API + Storage + Studio) to production servers with identical Docker containers and infrastructure. Perfect dev/prod parity with massive cost savings and complete data sovereignty.
 
 ### Core Philosophy
-- **Dev/Prod Parity**: Identical infrastructure patterns from localhost to production
-- **Don't Reinvent the Wheel**: Use Traefik for SSL, Docker Compose for orchestration, mkcert for local certs
-- **Configuration Over Code**: Generate files users can understand and modify
-- **Infrastructure as Code**: Production-grade patterns that scale from dev to enterprise
+- **Complete Self-Hosting**: Deploy full Supabase stack (not just your app) to your own servers
+- **Escape BaaS Vendor Costs**: $25/month → $2,900/month hosted vs $20-200/month self-hosted
+- **Perfect Dev/Prod Parity**: Identical Docker containers from development to production
+- **GitOps Deployment**: Deploy via git tags, rollback via git checkout
+- **Infrastructure as Code**: All configuration in version control, no clickops
 
 ## Current Architecture
 
@@ -33,15 +36,21 @@ light deploy [environment]   # Deploy with identical infrastructure to productio
 ### File Structure
 ```
 project-root/
-├── light.config.yaml         # Main proxy configuration
+├── light.config.yaml         # BaaS stack configuration
 ├── .env                      # Environment variables (optional)
-└── .light/                   # Generated proxy files
-    ├── docker-compose.yml    # Traefik service only
+├── supabase/                 # Supabase project (if using Supabase)
+│   ├── config.toml           # Supabase configuration
+│   ├── migrations/           # Database schema migrations
+│   └── seed.sql              # Development seed data
+└── .light/                   # Generated infrastructure files
+    ├── docker-compose.yml    # Complete BaaS stack + app + proxy
     ├── docker-compose.dev.yml # Development overrides
-    ├── traefik/              # Dynamic routing configs
+    ├── docker-compose.prod.yml # Production overrides
+    ├── traefik/              # Reverse proxy configs
     │   ├── dynamic.yml       # Service routing rules
     │   └── tls.yml           # SSL certificate config
-    └── certs/                # mkcert certificates
+    ├── certs/                # mkcert certificates (dev only)
+    └── volumes/              # PostgreSQL data persistence (prod)
 ```
 
 ### Subdomain Architecture
@@ -68,32 +77,64 @@ router.lvh.me → Traefik routing management
 - **No containers required** - Proxy to existing localhost services
 - **Domain configurable** - Default `lvh.me`, but can be customized per project
 
+## CRITICAL UNDERSTANDING: What We Actually Deploy
+
+**This is NOT just a proxy tool**. We deploy complete infrastructure stacks:
+
+### Local Development Environment
+```bash
+light up
+# Starts: PostgreSQL + Supabase API + Supabase Auth + Supabase Storage +
+#         Supabase Studio + Traefik SSL Proxy + Your App Proxy
+# Result: Complete self-hosted BaaS stack identical to production
+```
+
+### Production Deployment Environment
+```bash
+light deploy production
+# SSH to server → git checkout tag → light up --env production
+# Deploys: Same PostgreSQL + Same Supabase services + Same Traefik + Your App
+# Result: Identical stack, different domain (yourdomain.com vs lvh.me)
+```
+
+### Why This Matters
+- **Supabase CLI** only does development (`supabase start`)
+- **Supabase hosted** gets expensive ($25 → $2,900/month)
+- **We bridge the gap** - self-host Supabase in production with zero complexity
+
 ### Development Workflow
 
 ```bash
-# 1. Initialize production-grade infrastructure config
+# 1. Initialize complete BaaS infrastructure
 light init my-app
 
-# 2. Start production-grade local environment
-light up
+# 2. Start complete self-hosted BaaS stack locally
+light up  # Not just proxy - full PostgreSQL, Auth, API, Storage, Studio
 
 # 3. Start your app normally (separate terminal)
 npm run dev
 
-# 4. Develop with production patterns
-# https://app.lvh.me → your app (same URL structure as prod)
-# https://router.lvh.me → infrastructure dashboard
-# https://api.lvh.me → backend services (same routing as prod)
+# 4. Develop against self-hosted BaaS
+# https://app.lvh.me → your app
+# https://api.lvh.me → your self-hosted Supabase API
+# https://studio.lvh.me → your self-hosted Supabase Studio
+# All identical to production, just different domains
 ```
 
-### Production Deployment
+### Production Deployment (GitOps)
 
 ```bash
-# 5. Deploy with identical infrastructure
-light deploy production
+# 5. Tag your release
+git tag v1.0.0 && git push --tags
 
-# Same Traefik config, same SSL approach, same routing
-# What works in dev works in production
+# 6. Deploy to production server
+light deploy production --tag v1.0.0
+
+# What happens:
+# → SSH to production server
+# → git checkout v1.0.0
+# → light up --env production
+# → Same containers, same stack, production domain + Let's Encrypt SSL
 ```
 
 ## Implementation Guidelines
@@ -123,29 +164,81 @@ For more help: light [command] --help
 
 ## Current Implementation Status
 
-### Completed (Implementation Phase)
-- ✅ All core commands (`init`, `up`, `down`, `status`, `logs`, `deploy`)
-- ✅ Local proxy architecture (Traefik container only)
+### Completed (Foundation Phase)
+- ✅ Core command structure (`init`, `up`, `down`, `status`, `logs`, `deploy`)
 - ✅ mkcert integration for local SSL certificates
 - ✅ Dynamic Traefik routing configuration generation
-- ✅ BaaS service auto-detection and proxying (Supabase)
+- ✅ BaaS service auto-detection (Supabase config detection)
 - ✅ Cosmiconfig-based configuration management with Zod validation
 - ✅ Functional subdomain mapping strategy
-- ✅ Command aliases (`start`, `stop`, `ps`)
+- ✅ Command aliases and proper CLI UX
 
-### Key Design Decisions Made
-- **Local Development**: Proxy to localhost, no app containerization required
-- **Docker Compose**: Generate Traefik-only configs (not Dockerode SDK)
-- **SSL Strategy**: mkcert for local, Traefik handles all routing
-- **No App Containers**: Developers use existing `npm run dev` workflow
-- **Functional Subdomains**: `api.lvh.me`, `studio.lvh.me`, `router.lvh.me`
-- **BaaS Integration**: Auto-detect and proxy, don't wrap CLIs
+### Missing (Core Value - Self-Hosted BaaS Deployment)
+- ❌ **Complete Supabase Docker stack generation** (PostgreSQL, Auth, API, Storage, Studio)
+- ❌ **Production deployment pipeline** (GitOps via SSH + git checkout + light up)
+- ❌ **Database persistence** (PostgreSQL volumes and backup strategies)
+- ❌ **Let's Encrypt integration** (Traefik automatic HTTPS for production domains)
+- ❌ **Optional self-hosting** (support both self-hosted and hosted BaaS modes)
 
-### Architecture Evolution
-The CLI evolved from complex orchestration to **focused dev/prod parity**:
-- **Before**: Tried to be everything - complex builds, multiple deployment targets
-- **After**: Dev/prod infrastructure consistency with production-grade local development
-- **Core insight**: Developers need production patterns in development, then identical deployment
+### Critical Architecture Decisions for Future Implementation
+
+**Deployment Strategy (GitOps, not file transfer):**
+```bash
+# Local:
+light deploy production --tag v1.2.3
+
+# What happens on production server:
+ssh user@server
+cd /opt/myapp
+git checkout v1.2.3
+light up --env production  # Same command, different environment
+```
+
+**Self-Hosted vs Hosted BaaS (User Choice):**
+- **Self-hosted mode**: Generate full Supabase Docker stack (PostgreSQL + all services)
+- **Hosted mode**: Proxy to external Supabase/Firebase (current implementation)
+- **Detection**: Check for local `supabase/` directory vs external API endpoints
+
+**Database Persistence Strategy:**
+- **Development**: Docker volumes (ephemeral, reset with `light down --volumes`)
+- **Production**: Named Docker volumes + backup strategies
+- **Migrations**: Use Supabase CLI migration system in both environments
+- ❌ **Full BaaS stack in local development** (currently just proxy detection)
+- ❌ **Production SSL with Let's Encrypt** (automatic cert management via Traefik)
+- ❌ **Migration handling** (Supabase schema migrations in production)
+
+### Current Gap: We're Still Just a Proxy Tool
+**Problem**: Right now we only proxy to `supabase start` (external Supabase CLI)
+**Need**: We must deploy the complete self-hosted Supabase Docker stack ourselves
+**Why**: This is our core value - Supabase CLI doesn't do production, we do
+
+## Next Implementation Priorities (001-deployment-implementation)
+
+### 1. Research Supabase Self-Hosting (URGENT)
+- Study: https://supabase.com/docs/guides/self-hosting
+- Understand: Complete Docker Compose setup for Supabase
+- Map: Which containers we need (PostgreSQL, Auth, API, Storage, Studio, etc.)
+- Document: How to migrate from `supabase start` to our own stack
+
+### 2. Update Docker Compose Generation
+- Generate complete BaaS stack, not just Traefik proxy
+- Include PostgreSQL with proper volumes for persistence
+- Include all Supabase services (supabase/supabase Docker images)
+- Environment-specific overrides (dev vs prod database persistence)
+
+### 3. Implement GitOps Deployment
+- SSH connection and git checkout on remote servers
+- Remote execution of `light up --env production`
+- Rollback via `git checkout previous-tag`
+- Health checks and deployment validation
+
+### 4. Database Persistence Strategy
+- PostgreSQL volume mounting for production
+- Backup and restore procedures
+- Migration handling (apply Supabase migrations to production DB)
+- Data seeding for development vs production
+
+**CRITICAL**: Until we deploy the complete self-hosted BaaS stack, we're just an expensive proxy tool. The real value is in the self-hosting automation.
 
 ## Common Patterns
 

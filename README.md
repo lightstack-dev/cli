@@ -7,26 +7,27 @@
 [![npm version](https://img.shields.io/npm/v/@lightstack-dev/cli.svg)](https://www.npmjs.com/package/@lightstack-dev/cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Development-to-production infrastructure orchestrator.** Lightstack CLI gives you production-grade patterns in development (HTTPS, reverse proxy, service routing), then deploys with identical infrastructure to production. No surprises, perfect dev/prod parity.
+**Complete self-hosted BaaS deployment platform.** Lightstack CLI gives you production-grade infrastructure in development (HTTPS, reverse proxy, full BaaS stack), then deploys the identical environment to production. Perfect dev/prod parity with complete control over your data and infrastructure.
 
 ## ✨ Features
 
 ### Development Experience
 - 🔒 **Production-grade HTTPS** - Real SSL certificates in development
 - 🌐 **Clean URLs** - `https://app.lvh.me` instead of `localhost:3000`
-- 🔄 **Service discovery** - Auto-proxy BaaS services with consistent URLs
+- 🗃️ **Self-hosted BaaS** - Complete Supabase stack running locally
 - 🚀 **Zero disruption** - Keep your existing `npm run dev` workflow
 
 ### Production Deployment
-- 🌍 **Identical infrastructure** - Same Traefik config, different targets
-- 📦 **Docker orchestration** - Generate production-ready Docker Compose
+- 🌍 **Identical infrastructure** - Same containers, same config, different domain
+- 🗃️ **Self-hosted BaaS in production** - Deploy complete Supabase stack to your servers
+- 📦 **GitOps deployment** - Deploy via git tags with zero-downtime
 - 🔐 **Let's Encrypt SSL** - Automatic HTTPS certificates in production
-- 🚀 **Zero-downtime deploys** - Rolling updates with health checks
 
-### Developer Experience
-- ⚡ **Dev/prod parity** - What works locally works in production
-- 📝 **Infrastructure as code** - Readable, modifiable configurations
-- 🎯 **Gradual complexity** - Start simple, scale to multi-environment
+### Cost & Control Benefits
+- 💰 **Escape vendor lock-in** - Self-host instead of paying hosted BaaS fees
+- 🔐 **Complete data control** - Your database, your servers, your rules
+- 📈 **Scale without surprises** - Predictable costs as you grow
+- 🛠️ **Full customization** - Modify and extend your BaaS stack as needed
 
 ## 🚀 Quick Start
 
@@ -68,6 +69,25 @@ light deploy production
 ### Production (Optional)
 - Docker-compatible VPS or cloud server
 - Domain name for your application
+
+## 🤔 Why Self-Host Your BaaS?
+
+**Cost Savings at Scale:**
+- Supabase hosted: $25/month → $2,900/month as you grow
+- Self-hosted: $20-200/month predictable server costs
+- **Save thousands** while keeping the same functionality
+
+**Complete Control:**
+- **Data sovereignty** - Your PostgreSQL database on your servers
+- **Custom modifications** - Extend Supabase services as needed
+- **Compliance ready** - GDPR, HIPAA, SOC2 on your infrastructure
+- **No vendor lock-in** - Switch hosting providers anytime
+
+**Production Grade:**
+- **Battle-tested stack** - Same containers Supabase uses internally
+- **Automated SSL** - Let's Encrypt certificates managed by Traefik
+- **Zero-downtime deployments** - GitOps with health checks and rollbacks
+- **Monitoring ready** - Standard Docker monitoring and logging
 
 ## 🛠️ Installation
 
@@ -191,25 +211,42 @@ PROJECT_NAME=my-project
 
 ## 🏗️ Architecture
 
-**Development-to-production infrastructure consistency:**
+**Complete self-hosted BaaS stack with identical dev/prod infrastructure:**
 
 ### Local Development
 ```
-Your App (localhost:3000) ← Traefik Proxy ← https://app.lvh.me
-Supabase (localhost:54321) ← Traefik Proxy ← https://api.lvh.me
+┌─ Docker Network ────────────────────────────────────────┐
+│                                                         │
+│  Your App (localhost:3000) ← Traefik ← https://app.lvh.me    │
+│  ├─ Supabase API           ← Traefik ← https://api.lvh.me    │
+│  ├─ Supabase Studio        ← Traefik ← https://studio.lvh.me │
+│  ├─ PostgreSQL (container)                             │
+│  ├─ Supabase Auth                                      │
+│  └─ Supabase Storage                                   │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
 ```
 
-### Production Deployment
+### Production Deployment (Identical Stack)
 ```
-Your App (Docker container) ← Traefik Proxy ← https://yourdomain.com
-Database (managed service) ← Traefik Proxy ← https://api.yourdomain.com
+┌─ Docker Network ────────────────────────────────────────┐
+│                                                         │
+│  Your App (container)      ← Traefik ← https://yourdomain.com   │
+│  ├─ Supabase API           ← Traefik ← https://api.yourdomain.com │
+│  ├─ Supabase Studio        ← Traefik ← https://studio.yourdomain.com │
+│  ├─ PostgreSQL (container) [persistent volumes]       │
+│  ├─ Supabase Auth                                      │
+│  └─ Supabase Storage                                   │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
 ```
 
 **Key principles:**
-- **Same proxy technology** (Traefik) in dev and production
-- **Same SSL approach** (mkcert locally, Let's Encrypt in production)
-- **Same routing patterns** (functional subdomains, service discovery)
-- **Same configuration files** (Docker Compose with environment overrides)
+- **Identical containers** - Same Docker images in dev and production
+- **Same proxy technology** (Traefik) with Let's Encrypt automation
+- **Same BaaS stack** - Complete Supabase self-hosted, not external service
+- **Same configuration files** - Docker Compose with environment overrides only
+- **GitOps deployment** - Deploy exact git commits with infrastructure as code
 
 **Dev/prod parity means:**
 - If routing works locally, it works in production
@@ -221,14 +258,16 @@ Database (managed service) ← Traefik Proxy ← https://api.yourdomain.com
 
 ### Development
 - **Any web framework** that runs on localhost (React, Vue, Nuxt, Next.js, SvelteKit, etc.)
-- **BaaS services**: Supabase, PocketBase, Appwrite, Firebase (auto-detected and proxied)
-- **Your existing tools**: Keep using `npm run dev`, `supabase start`, etc.
+- **Self-hosted BaaS**: Complete Supabase stack (PostgreSQL, Auth, API, Storage, Studio)
+- **Your existing tools**: Keep using `npm run dev`, standard development workflow
+- **Optional**: Use hosted BaaS services if you prefer (Supabase hosted, Firebase, etc.)
 
 ### Production
 - **Any Docker-compatible server** (VPS, cloud instances, dedicated servers)
-- **Container registries**: Docker Hub, GitHub Container Registry, AWS ECR
-- **Domain management**: Cloudflare, Route53, any DNS provider
-- **Database services**: Managed PostgreSQL, MongoDB Atlas, PlanetScale
+- **Self-hosted database**: PostgreSQL with persistent volumes and automated backups
+- **Complete BaaS stack**: All Supabase services self-hosted on your infrastructure
+- **Cost control**: Predictable server costs instead of per-usage BaaS pricing
+- **Data sovereignty**: Your data stays on your servers, full compliance control
 
 ## 📚 Documentation
 
