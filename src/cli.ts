@@ -9,6 +9,9 @@ import updateNotifier from 'update-notifier';
 import { initCommand } from './commands/init.js';
 import { upCommand } from './commands/up.js';
 import { downCommand } from './commands/down.js';
+import { statusCommand } from './commands/status.js';
+import { logsCommand } from './commands/logs.js';
+import { deployCommand } from './commands/deploy.js';
 
 // Get package.json for version and update checks
 const __filename = fileURLToPath(import.meta.url);
@@ -50,12 +53,11 @@ program
 
 program
   .command('up')
-  .description('Start development environment')
+  .description('Start local proxy for development')
   .option('--env <name>', 'Environment to use', 'development')
-  .option('--build', 'Force rebuild of containers')
   .option('--detach', 'Run in background', true)
   .action((options: unknown) => {
-    upCommand(options as { env?: string; build?: boolean; detach?: boolean });
+    upCommand(options as { env?: string; detach?: boolean });
   });
 
 program
@@ -66,10 +68,7 @@ program
   .option('--build', 'Force rebuild before deployment')
   .option('--rollback', 'Rollback to previous deployment')
   .action((environment: string, options: unknown) => {
-    console.log(chalk.red('❌ Error: Command not implemented yet'));
-    console.log('This will deploy to environment:', environment);
-    console.log('Options:', options);
-    process.exit(1);
+    deployCommand(environment, options as { dryRun?: boolean; build?: boolean; rollback?: boolean });
   });
 
 program
@@ -77,10 +76,7 @@ program
   .description('Show project and service status')
   .option('--format <format>', 'Output format (table, json)', 'table')
   .action((options: unknown) => {
-    console.log(chalk.red('❌ Error: Command not implemented yet'));
-    console.log('This will show project status');
-    console.log('Options:', options);
-    process.exit(1);
+    statusCommand(options as { format?: 'table' | 'json' });
   });
 
 program
@@ -90,15 +86,12 @@ program
   .option('--follow', 'Follow log output in real-time')
   .option('--tail <lines>', 'Number of lines to show', '50')
   .action((service: string | undefined, options: unknown) => {
-    console.log(chalk.red('❌ Error: Command not implemented yet'));
-    console.log('This will show logs for service:', service || 'all services');
-    console.log('Options:', options);
-    process.exit(1);
+    logsCommand(service, options as { follow?: boolean; tail?: string });
   });
 
 program
   .command('down')
-  .description('Stop development environment')
+  .description('Stop local proxy')
   .option('--volumes', 'Remove volumes as well (data loss warning)')
   .action((options: unknown) => {
     downCommand(options as { volumes?: boolean });
@@ -106,19 +99,13 @@ program
 
 // Command aliases
 program.command('start').description('Alias for "up"').action(() => {
-  console.log(chalk.red('❌ Error: Command not implemented yet'));
-  console.log('This is an alias for: light up');
-  process.exit(1);
+  upCommand({ env: 'development', detach: true });
 });
 program.command('stop').description('Alias for "down"').action(() => {
-  console.log(chalk.red('❌ Error: Command not implemented yet'));
-  console.log('This is an alias for: light down');
-  process.exit(1);
+  downCommand({ volumes: false });
 });
 program.command('ps').description('Alias for "status"').action(() => {
-  console.log(chalk.red('❌ Error: Command not implemented yet'));
-  console.log('This is an alias for: light status');
-  process.exit(1);
+  statusCommand({ format: 'table' });
 });
 
 // Error handling
