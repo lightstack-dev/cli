@@ -1,43 +1,43 @@
-![Lighstack logo](https://raw.githubusercontent.com/lightstack-dev/.github/refs/heads/main/assets/lighstack-logo-2025-08-protected.svg)
+![Lightstack logo](https://raw.githubusercontent.com/lightstack-dev/.github/refs/heads/main/assets/lighstack-logo-2025-08-protected.svg)
 
 # Lightstack CLI
 
-> Development and deployment orchestrator for BaaS platforms
+> Focused orchestration for Lightstack development workflows
 
-[![npm version](https://img.shields.io/npm/v/@lightstack/cli.svg)](https://www.npmjs.com/package/@lightstack/cli)
+[![npm version](https://img.shields.io/npm/v/@lightstack-dev/cli.svg)](https://www.npmjs.com/package/@lightstack-dev/cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Bridge the gap between `localhost` and production. Lightstack CLI orchestrates your entire development workflow with automated deployments, SSL/TLS setup, and seamless BaaS integration.
+Bridge the gap between `localhost` and production. Lightstack CLI orchestrates your development workflow by generating Docker Compose configurations and leveraging battle-tested tools like Traefik, mkcert, and Docker.
 
 ## ✨ Features
 
-- 🚀 **One Command Everything** - Start your entire stack with `lightstack dev`
-- 🔒 **SSL in Development** - Production parity with local HTTPS
-- 📦 **Smart Orchestration** - Coordinates Nuxt, Supabase, and other services
-- 🌍 **Deploy Anywhere** - Push to any VPS (Hetzner, DigitalOcean, etc.)
-- 🔄 **Pass-through Architecture** - Enhanced Supabase CLI, not a replacement
-- 🎯 **Zero Config** - Smart defaults with escape hatches when needed
+- 🚀 **One Command Start** - Launch your entire stack with `light up`
+- 🔒 **SSL Everywhere** - HTTPS in development and production
+- 📦 **Smart Orchestration** - Coordinates services via Docker Compose
+- 🌍 **Deploy Anywhere** - Push to any Docker-compatible VPS
+- ⚙️ **Configuration First** - Generate files you can understand and modify
+- 🎯 **Focused Scope** - Does one thing well: orchestration
 
 ## 🚀 Quick Start
 
 ```bash
 # Install globally
-npm install -g @lightstack/cli
+npm install -g @lightstack-dev/cli
 
 # Initialize in your project
-lightstack init
+light init my-awesome-app
 
-# Start development
-lightstack dev
+# Start development environment
+light up
 
 # Deploy to production
-lightstack deploy production
+light deploy production
 ```
 
 ## 📋 Requirements
 
-- Node.js 18+
-- Docker (for local development and deployment)
+- Node.js 20+
+- Docker Desktop (for local development and deployment)
 - Git
 
 ## 🛠️ Installation
@@ -45,140 +45,167 @@ lightstack deploy production
 ### Global Installation (Recommended)
 
 ```bash
-npm install -g @lightstack/cli
+npm install -g @lightstack-dev/cli
 ```
 
 ### Per-Project Installation
 
 ```bash
-npm install --save-dev @lightstack/cli
-```
-
-Add to your `package.json`:
-```json
-{
-  "scripts": {
-    "dev": "lightstack dev",
-    "deploy": "lightstack deploy"
-  }
-}
+npm install --save-dev @lightstack-dev/cli
+npx light init
 ```
 
 ## 📖 Usage
+
+### Initialize a New Project
+
+```bash
+light init my-project
+cd my-project
+```
+
+This creates:
+- `light.config.json` - Project configuration
+- Docker Compose files for dev and production
+- Environment variable templates
+- Local SSL certificates via mkcert
 
 ### Development
 
 Start your complete development environment:
 
 ```bash
-lightstack dev
+light up
 ```
 
 This command:
-- ✅ Starts Supabase (if not running)
-- ✅ Runs database migrations
-- ✅ Seeds test data
-- ✅ Starts your Nuxt app
-- ✅ Sets up SSL certificates (optional)
-- ✅ Opens your browser
+- ✅ Validates Docker is running
+- ✅ Starts Traefik reverse proxy with SSL
+- ✅ Starts your application services
+- ✅ Runs health checks
+- ✅ Displays service URLs
+
+Access your services:
+- **App**: https://my-project.lvh.me
+- **Traefik Dashboard**: https://localhost:8080
 
 ### Deployment
 
-#### First Time Setup
+#### Configure Production Target
 
-Initialize deployment configuration:
-
-```bash
-lightstack deploy init production
+Edit `light.config.json`:
+```json
+{
+  "deployments": [
+    {
+      "name": "production",
+      "host": "your-server.com",
+      "domain": "myapp.com",
+      "ssl": {
+        "enabled": true,
+        "provider": "letsencrypt",
+        "email": "you@example.com"
+      }
+    }
+  ]
+}
 ```
-
-The interactive wizard will help you configure:
-- 🖥️ Target server (VPS hostname/IP)
-- 🌐 Domain configuration
-- 🔒 SSL certificates (Let's Encrypt)
-- 🔑 SSH access
-- 🔐 Secrets generation
 
 #### Deploy
 
 ```bash
-lightstack deploy production
+light deploy production
 ```
 
 Handles everything:
 - Docker image building
-- Secret management
-- SSL certificate provisioning
+- File upload to server
+- Traefik configuration with Let's Encrypt
 - Zero-downtime deployment
-- Health checks
+- Automatic rollback on failure
 
-### Pass-through Commands
-
-All Supabase CLI commands work as expected:
+### Other Commands
 
 ```bash
-# These pass through to Supabase CLI
-lightstack db reset
-lightstack migration new
-lightstack functions deploy
+light status          # Show service status
+light logs             # View all service logs
+light logs my-app      # View specific service logs
+light down             # Stop development environment
+light --help           # Show all available commands
+light --version        # Show CLI version
 ```
+
+**Note**: Lightstack CLI focuses on orchestrating your development workflow. It does not pass through commands to other tools. Use BaaS CLIs (Supabase, PocketBase, etc.) directly for their specific operations.
 
 ## 🔧 Configuration
 
 ### Project Configuration
 
-`.lightstack/config.yml`
-```yaml
-# Local development
-local:
-  ssl: true
-  domain: app.local.lightstack.dev
-
-# Deployment targets
-deployments:
-  production:
-    host: your-server.com
-    domain: app.yourdomain.com
-    ssl:
-      provider: letsencrypt
-      email: admin@yourdomain.com
+`light.config.json`
+```json
+{
+  "name": "my-project",
+  "type": "nuxt",
+  "services": [
+    {
+      "name": "my-app",
+      "type": "frontend",
+      "port": 3000,
+      "buildCommand": "npm run build",
+      "startCommand": "npm run preview"
+    }
+  ],
+  "deployments": [
+    {
+      "name": "production",
+      "host": "your-server.com",
+      "domain": "myapp.com",
+      "ssl": {
+        "enabled": true,
+        "provider": "letsencrypt",
+        "email": "admin@myapp.com"
+      }
+    }
+  ]
+}
 ```
 
 ### Environment Variables
 
-`.lightstack/.env.production`
 ```bash
-# Auto-generated secrets
-POSTGRES_PASSWORD=...
-JWT_SECRET=...
+# .env.development
+NODE_ENV=development
+PORT=3000
 
-# Your configuration
-SMTP_HOST=...
-SMTP_USER=...
+# .env.production
+NODE_ENV=production
+PORT=3000
 ```
 
 ## 🏗️ Architecture
 
-Lightstack CLI enhances existing tools rather than replacing them:
+Lightstack CLI generates configuration for existing tools:
 
 ```
-Your Commands → Lightstack CLI → Enhanced Actions
-                       ↓
-                Pass-through → Supabase CLI (unchanged commands)
+Your Project → Lightstack CLI → Generated Files → Existing Tools
+                    ↓
+            docker-compose.yml → Docker Compose
+            traefik.yml → Traefik (SSL/routing)
+            .github/workflows/ → GitHub Actions
 ```
 
-## 🤝 Works With
+**Philosophy**: Orchestrate, don't reimplement.
 
-- **Frameworks**: Nuxt (first-class), Next.js, SvelteKit, Vue, React
-- **BaaS**: Supabase (current), PocketBase & Appwrite (planned)
+## 🛠️ Works With
+
+- **Frameworks**: Nuxt, SvelteKit, Next.js, React, Vue
+- **BaaS**: Supabase, PocketBase, Appwrite (use their CLIs directly)
 - **Deployment**: Any VPS with Docker support
-- **CI/CD**: GitHub Actions, GitLab CI, Bitbucket Pipelines
+- **CI/CD**: GitHub Actions, GitLab CI, Jenkins
 
 ## 📚 Documentation
 
-- [Full Documentation](https://github.com/lightstack-dev/cli/wiki)
-- [Deployment Guide](https://github.com/lightstack-dev/cli/wiki/deployment)
-- [Configuration Reference](https://github.com/lightstack-dev/cli/wiki/configuration)
+Full documentation coming soon at [cli.lightstack.dev](https://cli.lightstack.dev)
 
 ## 🧩 Part of Lightstack
 
@@ -189,31 +216,29 @@ This CLI is part of the [Lightstack](https://github.com/lightstack-dev) ecosyste
 
 ## 🛣️ Roadmap
 
-- [x] Supabase orchestration
-- [x] VPS deployment automation
-- [ ] PocketBase adapter
-- [ ] Appwrite adapter
-- [ ] Kubernetes deployment
-- [ ] Multi-region deployment
+- [x] Docker Compose orchestration
+- [x] Traefik SSL automation
+- [x] VPS deployment
+- [ ] GitHub Actions generation
+- [ ] Multi-environment support
+- [ ] Plugin system for custom services
 
 ## 💻 Development
 
 ```bash
-# Clone the repository
+# Clone and install
 git clone https://github.com/lightstack-dev/cli.git
 cd cli
-
-# Install dependencies
 npm install
 
-# Run locally
+# Run in development
 npm run dev
 
-# Build
-npm run build
-
-# Test
+# Run tests
 npm test
+
+# Build for production
+npm run build
 ```
 
 ## 🤝 Contributing
@@ -226,4 +251,4 @@ MIT © [Lightstack](https://github.com/lightstack-dev)
 
 ---
 
-Made with ❤️ for the developer community
+**Skip the boilerplate. Start innovating.**
