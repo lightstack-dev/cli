@@ -20,7 +20,7 @@ export function downCommand(options: DownOptions = {}) {
       throw new Error('Docker Compose files not found.');
     }
 
-    console.log(chalk.blue('🛑'), 'Stopping development environment...');
+    console.log(chalk.blue('🛑'), 'Stopping local proxy...');
 
     // Build Docker Compose command
     const envFileArg = existsSync('.env') ? '--env-file ./.env' : '';
@@ -30,7 +30,7 @@ export function downCommand(options: DownOptions = {}) {
     // Execute Docker Compose
     execSync(dockerCmd, { stdio: 'inherit' });
 
-    console.log(chalk.green('✅'), 'Development environment stopped');
+    console.log(chalk.green('✅'), 'Local proxy stopped');
 
     if (removeVolumes) {
       console.log(chalk.yellow('⚠️'), 'Volumes removed - data may be lost');

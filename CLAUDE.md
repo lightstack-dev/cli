@@ -2,23 +2,24 @@
 
 ## Project Overview
 
-**Lightstack CLI** (`@lightstack-dev/cli`) is a focused command-line tool that orchestrates development workflows for BaaS (Backend-as-a-Service) applications. It generates Docker Compose configurations and leverages existing tools rather than reimplementing functionality.
+**Lightstack CLI** (`@lightstack-dev/cli`) is a development-to-production infrastructure orchestrator that bridges localhost and production with identical patterns. It provides production-grade infrastructure in development (HTTPS, reverse proxy, service routing) and deploys with the same infrastructure to production, ensuring perfect dev/prod parity.
 
 ### Core Philosophy
+- **Dev/Prod Parity**: Identical infrastructure patterns from localhost to production
 - **Don't Reinvent the Wheel**: Use Traefik for SSL, Docker Compose for orchestration, mkcert for local certs
 - **Configuration Over Code**: Generate files users can understand and modify
-- **Single Responsibility**: Orchestrate workflows, don't try to be everything
+- **Infrastructure as Code**: Production-grade patterns that scale from dev to enterprise
 
 ## Current Architecture
 
 ### Command Structure
 ```
-light init [project-name]    # Initialize new project
-light up                     # Start development environment
-light deploy [environment]   # Deploy to target environment
-light status                 # Show project/service status
-light logs [service]         # Show service logs
-light down                   # Stop development environment
+light init [project-name]    # Initialize development/production infrastructure
+light up                     # Start production-grade local environment
+light status                 # Show infrastructure and service status
+light logs [service]         # Show infrastructure logs
+light down                   # Stop local infrastructure
+light deploy [environment]   # Deploy with identical infrastructure to production
 ```
 
 ### Technology Stack
@@ -32,18 +33,70 @@ light down                   # Stop development environment
 ### File Structure
 ```
 project-root/
-├── light.config.json         # Main configuration
-├── .env.development          # Dev environment variables
-├── .env.production           # Prod environment variables
-└── .light/                   # Generated files
-    ├── docker-compose.yml    # Base services
-    ├── docker-compose.dev.yml # Dev overrides
-    ├── docker-compose.prod.yml # Prod overrides
+├── light.config.yaml         # Main proxy configuration
+├── .env                      # Environment variables (optional)
+└── .light/                   # Generated proxy files
+    ├── docker-compose.yml    # Traefik service only
+    ├── docker-compose.dev.yml # Development overrides
+    ├── traefik/              # Dynamic routing configs
+    │   ├── dynamic.yml       # Service routing rules
+    │   └── tls.yml           # SSL certificate config
     └── certs/                # mkcert certificates
 ```
 
-## Implementation Guidelines
+### Subdomain Architecture
 
+Lightstack uses a functional subdomain mapping strategy:
+
+```
+# App Services (from light.config.yaml)
+{service-name}.lvh.me → localhost:{service-port}
+- app.lvh.me → localhost:3000
+- admin.lvh.me → localhost:4000
+
+# BaaS Services (auto-detected)
+api.lvh.me → localhost:54321     (Supabase API)
+studio.lvh.me → localhost:54323  (Supabase Studio)
+
+# Infrastructure
+router.lvh.me → Traefik routing management
+```
+
+**Key Principles:**
+- **Functional naming** - Subdomains describe what the service does, not which tool provides it
+- **Tool agnostic** - Switch from Supabase to Firebase, URLs stay predictable
+- **No containers required** - Proxy to existing localhost services
+- **Domain configurable** - Default `lvh.me`, but can be customized per project
+
+### Development Workflow
+
+```bash
+# 1. Initialize production-grade infrastructure config
+light init my-app
+
+# 2. Start production-grade local environment
+light up
+
+# 3. Start your app normally (separate terminal)
+npm run dev
+
+# 4. Develop with production patterns
+# https://app.lvh.me → your app (same URL structure as prod)
+# https://router.lvh.me → infrastructure dashboard
+# https://api.lvh.me → backend services (same routing as prod)
+```
+
+### Production Deployment
+
+```bash
+# 5. Deploy with identical infrastructure
+light deploy production
+
+# Same Traefik config, same SSL approach, same routing
+# What works in dev works in production
+```
+
+## Implementation Guidelines
 
 ### Constitutional Principles
 1. **Don't Reinvent the Wheel**: If a tool does it well, orchestrate it
@@ -70,27 +123,29 @@ For more help: light [command] --help
 
 ## Current Implementation Status
 
-### Completed (Design Phase)
-- ✅ Project specification and requirements
-- ✅ Technical architecture decisions
-- ✅ Command contracts and behavior definitions
-- ✅ Data model for project entities
-- ✅ Quickstart user workflow validation
+### Completed (Implementation Phase)
+- ✅ All core commands (`init`, `up`, `down`, `status`, `logs`, `deploy`)
+- ✅ Local proxy architecture (Traefik container only)
+- ✅ mkcert integration for local SSL certificates
+- ✅ Dynamic Traefik routing configuration generation
+- ✅ BaaS service auto-detection and proxying (Supabase)
+- ✅ Cosmiconfig-based configuration management with Zod validation
+- ✅ Functional subdomain mapping strategy
+- ✅ Command aliases (`start`, `stop`, `ps`)
 
 ### Key Design Decisions Made
-- **Docker Compose**: Generate files + shell out (not Dockerode SDK)
-- **SSL Strategy**: Traefik handles all SSL (Let's Encrypt prod, mkcert local)
-- **No Plugin System**: Start simple, YAGNI principle
-- **No Service Layer**: Commands work directly, avoid overengineering
-- **BaaS Integration**: Decided against wrapping other CLIs
+- **Local Development**: Proxy to localhost, no app containerization required
+- **Docker Compose**: Generate Traefik-only configs (not Dockerode SDK)
+- **SSL Strategy**: mkcert for local, Traefik handles all routing
+- **No App Containers**: Developers use existing `npm run dev` workflow
+- **Functional Subdomains**: `api.lvh.me`, `studio.lvh.me`, `router.lvh.me`
+- **BaaS Integration**: Auto-detect and proxy, don't wrap CLIs
 
-### Next Implementation Phase
-When ready for implementation, prioritize:
-1. `light init` command (project scaffolding)
-2. `light up` command (development environment)
-3. Basic Docker Compose generation
-4. mkcert integration for local SSL
-5. Traefik configuration generation
+### Architecture Evolution
+The CLI evolved from complex orchestration to **focused dev/prod parity**:
+- **Before**: Tried to be everything - complex builds, multiple deployment targets
+- **After**: Dev/prod infrastructure consistency with production-grade local development
+- **Core insight**: Developers need production patterns in development, then identical deployment
 
 ## Common Patterns
 
@@ -144,10 +199,17 @@ tests/
 
 ## Recent Changes & Context
 
+### Major Architecture Shift (Latest)
+- **Dev/Prod Parity Focus**: Infrastructure consistency from localhost to production
+- **Production-Grade Local Development**: HTTPS, reverse proxy, service routing in dev
+- **Simplified Local Workflow**: No app containerization required, proxy existing localhost
+- **Deployment Ready**: Full production deployment with identical infrastructure patterns
+
+### Earlier Decisions
 - **CLI Name**: Changed from `lightstack` to `light` for better typing experience
-- **BaaS Integration**: Decided against wrapping other CLIs (Supabase, etc.)
+- **BaaS Integration**: Auto-detect and proxy, don't wrap other CLIs (Supabase, etc.)
 - **Package Name**: `@lightstack-dev/cli` in npm registry
-- **SSL Approach**: Simplified to Traefik-only (no custom cert management)
+- **SSL Approach**: mkcert + Traefik (no custom cert management)
 
 ---
 

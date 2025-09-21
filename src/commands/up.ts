@@ -2,18 +2,21 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { execSync } from 'child_process';
 import chalk from 'chalk';
 import yaml from 'js-yaml';
+import { setupMkcert, generateTraefikTlsConfig } from '../utils/mkcert.js';
+import { getProjectConfig, type ServiceConfig } from '../utils/config.js';
 
 interface UpOptions {
   env?: string;
-  build?: boolean;
   detach?: boolean;
 }
 
 export function upCommand(options: UpOptions = {}) {
   try {
     const env = options.env || 'development';
-    const build = options.build || false;
     const detach = options.detach !== false; // Default to true
+
+    // Load project configuration
+    const projectConfig = getProjectConfig();
 
     // Check prerequisites
     checkPrerequisites();
@@ -21,37 +24,49 @@ export function upCommand(options: UpOptions = {}) {
     // Check environment setup
     checkEnvironment(env);
 
+    // Setup SSL certificates for development
+    if (env === 'development') {
+      setupLocalSsl();
+    }
+
     // Generate BaaS proxy configs if needed
     generateBaaSProxyConfigs();
 
     // Build Docker Compose command
     const composeFiles = getComposeFiles(env);
-    const dockerCmd = buildDockerCommand(composeFiles, { build, detach });
+    const dockerCmd = buildDockerCommand(composeFiles, { detach });
 
-    console.log(chalk.blue('🚀'), `Starting ${env} environment...`);
-
-    if (build) {
-      console.log(chalk.blue('🔨'), 'Building containers...');
-    }
+    console.log(chalk.blue('🚀'), `Starting local proxy...`);
 
     // Execute Docker Compose
     execSync(dockerCmd, { stdio: 'inherit' });
 
-    console.log(chalk.green('✅'), `${env} environment started`);
+    console.log(chalk.green('✅'), 'Proxy started');
 
-    if (env === 'development') {
-      console.log('\nServices available at:');
-      console.log('  https://app.lvh.me     # Main application');
-      console.log('  https://proxy.lvh.me   # Proxy dashboard');
+    console.log('\n' + chalk.bold('Ready to proxy:'));
 
-      // Show BaaS URLs if detected
-      const detectedServices = detectBaaSServices();
-      if (detectedServices.includes('Supabase')) {
-        console.log('  https://api.lvh.me     # Supabase API');
-        console.log('  https://db.lvh.me      # Supabase Studio');
-        console.log('  https://storage.lvh.me # Supabase Storage');
-      }
+    // Show configured services
+    projectConfig.services.forEach(service => {
+      const url = `https://${service.name}.lvh.me`;
+      const localUrl = `localhost:${service.port}`;
+      console.log(chalk.green('  ✓'), `${url.padEnd(25)} → ${localUrl}`);
+    });
+
+    // Show BaaS URLs if detected
+    const detectedServices = detectBaaSServices();
+    if (detectedServices.includes('Supabase')) {
+      console.log(chalk.green('  ✓'), `${'https://api.lvh.me'.padEnd(25)} → localhost:54321`);
+      console.log(chalk.green('  ✓'), `${'https://studio.lvh.me'.padEnd(25)} → localhost:54323`);
     }
+
+    console.log(chalk.green('  ✓'), `${'https://router.lvh.me'.padEnd(25)} → Traefik routing`);
+
+    console.log('\n' + chalk.bold('Start your app:'));
+    console.log('  npm run dev');
+    console.log('  yarn dev');
+    console.log('  bun dev');
+
+    console.log('\n' + chalk.gray('Stop proxy with: light down'));
 
   } catch (error) {
     console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : 'Unknown error');
@@ -75,11 +90,6 @@ function checkPrerequisites() {
   // Check if required Docker Compose files exist
   if (!existsSync('.light/docker-compose.yml')) {
     throw new Error('Docker Compose files not found. Run "light init" to regenerate them.');
-  }
-
-  // Check if Dockerfile exists (required for building the app)
-  if (!existsSync('Dockerfile')) {
-    throw new Error('Dockerfile not found. See https://cli.lightstack.dev/getting-started for setup instructions.');
   }
 }
 
@@ -156,31 +166,28 @@ function getComposeFiles(env: string): string[] {
 
 function buildDockerCommand(
   composeFiles: string[],
-  options: { build: boolean; detach: boolean }
+  options: { detach: boolean }
 ): string {
   const fileArgs = composeFiles.map(f => `-f ${f}`).join(' ');
   const envFileArg = existsSync('.env') ? '--env-file ./.env' : '';
-  const buildFlag = options.build ? '--build' : '';
   const detachFlag = options.detach ? '-d' : '';
 
-  return `docker compose ${fileArgs} ${envFileArg} up ${buildFlag} ${detachFlag}`.trim();
+  return `docker compose ${fileArgs} ${envFileArg} up ${detachFlag}`.trim();
 }
 
 function generateBaaSProxyConfigs() {
-  const detectedServices = detectBaaSServices();
-
-  if (detectedServices.length === 0) {
-    return;
-  }
-
   // Create traefik directory
   mkdirSync('.light/traefik', { recursive: true });
 
-  // Generate dynamic configuration for detected BaaS services
-  const dynamicConfig = generateTraefikDynamicConfig(detectedServices);
+  // Generate dynamic configuration for all services (app + BaaS)
+  const detectedBaaSServices = detectBaaSServices();
+  const projectConfig = getProjectConfig();
+  const dynamicConfig = generateTraefikDynamicConfig(projectConfig.services, detectedBaaSServices);
   writeFileSync('.light/traefik/dynamic.yml', dynamicConfig);
 
-  console.log(chalk.blue('ℹ'), `BaaS services detected. Generating proxy configuration (${detectedServices.join(', ')})...`);
+  if (detectedBaaSServices.length > 0) {
+    console.log(chalk.blue('ℹ'), `BaaS services detected: ${detectedBaaSServices.join(', ')}`);
+  }
 }
 
 function detectBaaSServices(): string[] {
@@ -217,7 +224,26 @@ interface TraefikDynamicConfig {
   };
 }
 
-function generateTraefikDynamicConfig(services: string[]): string {
+function setupLocalSsl(): void {
+  const mkcertResult = setupMkcert();
+
+  if (mkcertResult.certsGenerated && mkcertResult.certPath && mkcertResult.keyPath) {
+    // Generate Traefik TLS configuration
+    const tlsConfig = generateTraefikTlsConfig(mkcertResult.certPath, mkcertResult.keyPath);
+
+    // Create traefik directory if it doesn't exist
+    mkdirSync('.light/traefik', { recursive: true });
+
+    // Write TLS configuration
+    writeFileSync('.light/traefik/tls.yml', tlsConfig);
+
+    console.log(chalk.green('✅'), 'SSL certificates configured for local development');
+  } else {
+    console.log(chalk.yellow('⚠️'), 'Running without SSL. Install mkcert for HTTPS support.');
+  }
+}
+
+function generateTraefikDynamicConfig(appServices: ServiceConfig[], baasServices: string[]): string {
   const config: TraefikDynamicConfig = {
     http: {
       routers: {},
@@ -225,7 +251,26 @@ function generateTraefikDynamicConfig(services: string[]): string {
     }
   };
 
-  services.forEach(service => {
+  // Add routes for app services (proxying to localhost)
+  appServices.forEach(service => {
+    const routerName = service.name;
+    const serviceName = `${service.name}-service`;
+
+    config.http.routers[routerName] = {
+      rule: `Host(\`${service.name}.lvh.me\`)`,
+      service: serviceName,
+      tls: true
+    };
+
+    config.http.services[serviceName] = {
+      loadBalancer: {
+        servers: [{ url: `http://host.docker.internal:${service.port}` }]
+      }
+    };
+  });
+
+  // Add routes for BaaS services
+  baasServices.forEach(service => {
     if (service === 'Supabase') {
       // Supabase API
       config.http.routers['supabase-api'] = {
@@ -241,25 +286,13 @@ function generateTraefikDynamicConfig(services: string[]): string {
 
       // Supabase Studio (Database UI)
       config.http.routers['supabase-studio'] = {
-        rule: 'Host(`db.lvh.me`)',
+        rule: 'Host(`studio.lvh.me`)',
         service: 'supabase-studio',
         tls: true
       };
       config.http.services['supabase-studio'] = {
         loadBalancer: {
           servers: [{ url: 'http://host.docker.internal:54323' }]
-        }
-      };
-
-      // Supabase Storage
-      config.http.routers['supabase-storage'] = {
-        rule: 'Host(`storage.lvh.me`)',
-        service: 'supabase-storage',
-        tls: true
-      };
-      config.http.services['supabase-storage'] = {
-        loadBalancer: {
-          servers: [{ url: 'http://host.docker.internal:54324' }]
         }
       };
     }

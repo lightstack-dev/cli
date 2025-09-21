@@ -1,14 +1,14 @@
 # Lightstack CLI Quickstart Guide
 
-**Goal**: Get from zero to deployed web application in under 10 minutes
+**Goal**: Set up production-grade infrastructure for development, then deploy with identical patterns to production
 
 ## Prerequisites
 
 Before starting, ensure you have:
-- Docker Desktop installed and running
+- Docker Desktop installed and running (for the proxy container)
 - Node.js 20+ installed
-- Git installed
-- A VPS server for deployment (optional for local development)
+- [mkcert](https://github.com/FiloSottile/mkcert) installed (optional, for HTTPS)
+- An existing web project (React, Vue, Nuxt, Next.js, etc.)
 
 ## Step 1: Install Lightstack CLI
 
@@ -19,188 +19,185 @@ light --version
 
 **Expected output**: Version number confirming installation
 
-## Step 2: Create a New Project
+## Step 2: Initialize Proxy Configuration
 
 ```bash
-mkdir my-awesome-app
+# In your existing project directory
 cd my-awesome-app
 light init
 ```
 
 **What happens**:
-- Creates `light.config.json` with sensible defaults
-- Generates Docker Compose files for development and production
-- Sets up Traefik reverse proxy configuration
-- Installs mkcert and creates local SSL certificates
-- Creates environment variable templates
+- Creates `light.config.yaml` with proxy configuration
+- Generates Traefik configuration for routing
+- Sets up certificate directories
 
 **Expected files created**:
 ```
 my-awesome-app/
-├── light.config.json
-├── .env.development
-├── .env.production
+├── light.config.yaml
 └── .light/
-    ├── docker-compose.yml
-    ├── docker-compose.dev.yml
-    ├── docker-compose.prod.yml
-    └── certs/
-        ├── localhost.pem
-        └── localhost-key.pem
+    ├── docker-compose.yml      # Traefik proxy only
+    ├── docker-compose.dev.yml  # Development overrides
+    ├── traefik/               # Dynamic routing configs
+    └── certs/                 # SSL certificates (created on first run)
 ```
 
-## Step 3: Start Development Environment
+## Step 3: Start the Proxy
 
 ```bash
 light up
 ```
 
 **What happens**:
-- Validates project configuration
-- Starts Traefik reverse proxy with SSL
-- Starts your application services
-- Runs health checks
-- Displays service URLs
+- Validates Docker is running
+- Starts Traefik proxy container only
+- Generates SSL certificates via mkcert
+- Sets up routing configuration
 
 **Expected output**:
 ```
-✓ Docker daemon running
-✓ Validating service configuration
-✓ Starting services...
-  ↳ traefik (reverse proxy)    https://localhost
-  ↳ my-awesome-app (frontend)  https://my-awesome-app.lvh.me
-  ↳ supabase (database)        https://supabase.lvh.me
+🚀 Starting local proxy...
+✅ Proxy started
 
-🎉 All services running!
+Ready to proxy:
+  ✓ https://app.lvh.me          → localhost:3000
+  ✓ https://router.lvh.me       → Traefik routing
 
-Development URLs:
-• App: https://my-awesome-app.lvh.me
-• Supabase Studio: https://supabase.lvh.me
-• Traefik Dashboard: https://localhost:8080
+Start your app:
+  npm run dev
+  yarn dev
+  bun dev
 
-To stop: light down
+Stop proxy with: light down
 ```
 
-## Step 4: Verify Everything Works
+## Step 4: Start Your App
+
+In a separate terminal, start your app normally:
+
+```bash
+# Use your normal development command
+npm run dev
+# or: yarn dev, bun dev, pnpm dev, etc.
+```
+
+## Step 5: Access Your App via HTTPS
 
 Open your browser and visit:
 
-1. **https://my-awesome-app.lvh.me** - Your application
+1. **https://app.lvh.me** - Your application
    - Should show your app running with valid SSL certificate
-   - Certificate should be trusted (thanks to mkcert)
+   - No more `localhost:3000` or port juggling!
 
-2. **https://supabase.lvh.me** - Supabase Studio
-   - Should show Supabase dashboard
-   - Ready for database management
-
-3. **https://localhost:8080** - Traefik Dashboard
+2. **https://router.lvh.me** - Traefik Dashboard
    - Shows routing configuration
    - Service health status
+
+**With Supabase** (if you have it running):
+```bash
+# In another terminal
+supabase start
+```
+
+Then visit:
+- **https://api.lvh.me** - Supabase API
+- **https://studio.lvh.me** - Supabase Studio
 
 **Troubleshooting**:
 - If lvh.me domains don't resolve, check your DNS settings (should work automatically)
 - If SSL warnings appear, run `mkcert -install` manually
-- If services fail to start, check `light logs` for details
+- If proxy fails to start, check `light logs` for details
 
-## Step 5: Make Changes and See Live Updates
+## Step 6: Develop Normally
 
-1. Edit your application code
-2. Changes should automatically reload (if using Nuxt/Vite)
-3. Refresh browser to see updates
+1. Edit your application code as usual
+2. Your app's hot reload still works perfectly
+3. Access everything via nice HTTPS URLs
+4. No containers slowing you down!
 
-## Step 6: Set Up for Production (Optional)
+## Step 7: Deploy to Production (Optional)
 
-If you have a VPS server, configure deployment:
-
-```bash
-# Edit light.config.json to add production target
-{
-  "name": "my-awesome-app",
-  "services": [...],
-  "deployments": [
-    {
-      "name": "production",
-      "host": "your-server.com",
-      "domain": "myapp.com",
-      "ssl": {
-        "enabled": true,
-        "provider": "letsencrypt",
-        "email": "you@example.com"
-      }
-    }
-  ]
-}
-```
-
-## Step 7: Deploy to Production
+Now that you have production-grade patterns working locally, deploy with identical infrastructure:
 
 ```bash
+# Configure production deployment target
+# Edit light.config.yaml to add:
+deployments:
+  - name: production
+    host: your-server.com
+    domain: yourdomain.com
+    ssl:
+      enabled: true
+      provider: letsencrypt
+      email: you@example.com
+
+# Deploy with identical infrastructure
 light deploy production
 ```
 
-**What happens**:
-- Builds production containers
-- Uploads to your server via SSH
-- Deploys with zero downtime
-- Configures Traefik with Let's Encrypt SSL
-- Runs health checks
-- Rolls back automatically if anything fails
+**What happens:**
+- Same Traefik configuration, different target (your server instead of localhost)
+- Same SSL approach (Let's Encrypt instead of mkcert)
+- Same routing patterns (functional subdomains on your domain)
+- Same service discovery (Docker containers instead of localhost processes)
 
-**Expected output**:
+**Result:** Your app is live with identical infrastructure patterns to development.
+
+## Step 8: Stop Local Infrastructure (When Done)
+
+```bash
+light down
 ```
-✓ Building production containers...
-✓ Uploading to production server
-✓ Configuring Traefik with Let's Encrypt
-✓ Deploying with zero downtime
-✓ Health checks passed
-✓ SSL certificate obtained
 
-🚀 Deployment successful!
-
-Your app is live at: https://myapp.com
-Deployment ID: dep_2025091801
-```
+This stops only the local infrastructure. Your app development server keeps running normally.
 
 ## Common Commands
 
 ```bash
-# Check status of all services
+# Check proxy and service status
 light status
 
-# View logs from all services
+# View proxy logs
 light logs
 
 # View logs from specific service
-light logs my-awesome-app
+light logs traefik
 
-# Stop development environment
+# Stop proxy
 light down
 
-# Restart with fresh build
-light down && light up --build
+# Restart proxy
+light down && light up
 
-# Deploy with dry run (see what would happen)
-light deploy production --dry-run
+# Aliases
+light start    # Same as "light up"
+light stop     # Same as "light down"
+light ps       # Same as "light status"
 ```
 
 ## Integration with Other Tools
 
-Lightstack CLI works alongside your existing tools:
+Lightstack CLI handles infrastructure orchestration. Use all your existing tools normally:
 
 ```bash
-# Use Supabase CLI directly
+# Your app development (unchanged)
+npm run dev
+yarn build
+npm test
+
+# BaaS services (unchanged)
+supabase start
 supabase db reset
-supabase functions deploy
+firebase emulators:start
 
-# Use npm/yarn as usual
-npm run test
-npm run build
-
-# Use git normally
+# Git workflow (unchanged)
 git add . && git commit -m "Add feature"
 git push
 
-# Deploy automatically triggers via GitHub Actions (if configured)
+# Lightstack adds production-grade infrastructure
+light up              # Start local infrastructure
+light deploy prod     # Deploy with same infrastructure
 ```
 
 ## Validation Checklist
@@ -208,32 +205,37 @@ git push
 After completing this quickstart, you should have:
 
 - ✅ Lightstack CLI installed and working
-- ✅ New project created with all configuration files
-- ✅ Local development environment running with SSL
-- ✅ All services accessible via HTTPS URLs
-- ✅ (Optional) Production deployment working
-- ✅ Understanding of basic Lightstack CLI commands
+- ✅ Production-grade infrastructure running locally
+- ✅ Your app accessible via `https://app.lvh.me` with real SSL
+- ✅ Understanding of dev/prod parity workflow
+- ✅ (Optional) Production deployment with identical infrastructure
 
-## What's Missing from MVP
+## What Lightstack Does
 
-This quickstart intentionally omits advanced features:
-- Custom service definitions
-- Multiple environment configurations
-- CI/CD pipeline generation
-- Database migrations
-- Monitoring and logging
-- Plugin system
+**Development-to-production infrastructure orchestrator:**
+- ✅ Production-grade local development (HTTPS, reverse proxy, service routing)
+- ✅ Identical infrastructure patterns from dev to production
+- ✅ Dev/prod parity (same SSL, same routing, same service discovery)
+- ✅ Infrastructure as code (readable Docker Compose configurations)
 
-These will be added in future iterations based on user feedback.
+## What Lightstack Does NOT Do
+
+**Focused scope - infrastructure only:**
+- ❌ Replace your dev server (`npm run dev` stays the same)
+- ❌ Replace your deployment platform (works with any Docker-compatible server)
+- ❌ Replace your BaaS tools (orchestrates them, doesn't wrap them)
+- ❌ Replace complex container orchestration (use Kubernetes for that)
 
 ## Getting Help
 
 - `light --help` - General help
 - `light [command] --help` - Command-specific help
-- `light status` - Current project status
-- Check Docker containers: `docker ps`
-- View all logs: `light logs --follow`
+- `light status` - Current proxy status
+- Check proxy container: `docker ps`
+- View proxy logs: `light logs`
 
 ---
 
-**Success metric**: A developer should be able to complete Steps 1-5 in under 5 minutes and have a working HTTPS development environment.
+**Success metrics**:
+- **Development setup**: Complete Steps 1-6 in under 5 minutes and have production-grade local infrastructure
+- **Production deployment**: Complete Step 7 and have identical infrastructure running in production
