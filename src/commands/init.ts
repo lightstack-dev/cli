@@ -83,7 +83,7 @@ function createDockerComposeFiles(project: ProjectConfig) {
   // Base docker-compose.yml - Only Traefik, no app containers
   const baseCompose = `services:
   traefik:
-    image: traefik:v3.0
+    image: traefik:v3.5
     container_name: \${PROJECT_NAME:-${project.name}}-proxy
     command:
       - --api.dashboard=true
