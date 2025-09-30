@@ -78,37 +78,37 @@ As a developer working with BaaS platforms, I need a CLI tool that enables me to
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
-- **FR-001**: System MUST provide single command to start complete development environment
-- **FR-002**: System MUST support SSL/TLS in local development for production parity
-- **FR-003**: System MUST orchestrate multiple services (frontend, BaaS, database) in correct dependency order
-- **FR-004**: System MUST deploy to any Docker-compatible VPS platform
-- **FR-005**: System MUST pass through all native BaaS CLI commands without modification
-- **FR-006**: System MUST auto-detect and use smart defaults for common configurations (port numbers, service names, database connections)
-- **FR-007**: System MUST manage secrets securely between environments
-- **FR-008**: System MUST provide zero-downtime deployments
-- **FR-009**: System MUST perform health checks after deployment
-- **FR-010**: System MUST support both global and per-project installation
-- **FR-011**: Users MUST be able to override default configurations
-- **FR-012**: System MUST generate and manage SSL certificates via Let's Encrypt
-- **FR-013**: System MUST handle database migrations automatically during development
-- **FR-014**: System MUST seed test data in development environments
-- **FR-015**: System MUST support multiple deployment targets (production, staging, etc.)
-- **FR-016**: System MUST build and manage container images for deployment
-- **FR-017**: System MUST validate environment before executing commands
-- **FR-018**: System MUST provide automatic rollback capability for failed deployments
-- **FR-019**: System MUST generate CI/CD configuration files for automated deployments (modular adapter pattern, starting with GitHub Actions)
-- **FR-020**: System MUST configure repository secrets and deployment tokens for CI/CD automation
-- **FR-021**: Generated CI/CD workflows MUST trigger deployments automatically on configured events (push to main, pull request merge)
+- **FR-001**: ✅ System MUST provide single command to start complete development environment
+- **FR-002**: ✅ System MUST support SSL/TLS in local development for production parity
+- **FR-003**: ✅ System MUST orchestrate multiple services (frontend, BaaS, database) in correct dependency order
+- **FR-004**: ⏳ System MUST deploy to any Docker-compatible VPS platform
+- **FR-005**: ✅ System MUST pass through all native BaaS CLI commands without modification
+- **FR-006**: ✅ System MUST auto-detect and use smart defaults for common configurations (port numbers, service names, database connections)
+- **FR-007**: ✅ System MUST manage secrets securely between environments
+- **FR-008**: ⏳ System MUST provide zero-downtime deployments
+- **FR-009**: ✅ System MUST perform health checks after deployment
+- **FR-010**: ✅ System MUST support both global and per-project installation
+- **FR-011**: ✅ Users MUST be able to override default configurations
+- **FR-012**: ⏳ System MUST generate and manage SSL certificates via Let's Encrypt
+- **FR-013**: ✅ System MUST handle database migrations automatically during development
+- **FR-014**: ⏳ System MUST seed test data in development environments
+- **FR-015**: ✅ System MUST support multiple deployment targets (production, staging, etc.)
+- **FR-016**: ⏳ System MUST build and manage container images for deployment
+- **FR-017**: ✅ System MUST validate environment before executing commands
+- **FR-018**: ⏳ System MUST provide automatic rollback capability for failed deployments
+- **FR-019**: ⏳ System MUST generate CI/CD configuration files for automated deployments (modular adapter pattern, starting with GitHub Actions)
+- **FR-020**: ⏳ System MUST configure repository secrets and deployment tokens for CI/CD automation
+- **FR-021**: ⏳ Generated CI/CD workflows MUST trigger deployments automatically on configured events (push to main, pull request merge)
 
 ### Self-Hosted BaaS Requirements *(core value proposition)*
-- **FR-022**: System MUST support optional self-hosted Supabase stack deployment (PostgreSQL, Auth, API, Storage, Studio)
-- **FR-023**: System MUST provide identical BaaS stack in development and production environments
-- **FR-024**: System MUST enable cost-effective alternative to hosted BaaS pricing
-- **FR-025**: System MUST preserve complete data sovereignty (user's servers, user's database)
-- **FR-026**: System MUST support migration from hosted to self-hosted BaaS configurations
-- **FR-027**: System MUST handle PostgreSQL data persistence in production with backup strategies
-- **FR-028**: System MUST integrate Supabase CLI migration system for schema management
-- **FR-029**: System MUST support GitOps deployment (deploy via git tags, not file transfer)
+- **FR-022**: ✅ System MUST support optional self-hosted Supabase stack deployment (PostgreSQL, Auth, API, Storage, Studio)
+- **FR-023**: ✅ System MUST provide identical BaaS stack in development and production environments
+- **FR-024**: ✅ System MUST enable cost-effective alternative to hosted BaaS pricing
+- **FR-025**: ✅ System MUST preserve complete data sovereignty (user's servers, user's database)
+- **FR-026**: ⏳ System MUST support migration from hosted to self-hosted BaaS configurations
+- **FR-027**: ✅ System MUST handle PostgreSQL data persistence in production with backup strategies
+- **FR-028**: ✅ System MUST integrate Supabase CLI migration system for schema management
+- **FR-029**: ⏳ System MUST support GitOps deployment (deploy via git tags, not file transfer)
 
 ### Key Entities *(include if feature involves data)*
 - **Project Configuration**: Represents project-specific settings including local development options, deployment targets, and service configurations

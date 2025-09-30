@@ -85,17 +85,25 @@ router.lvh.me → Traefik routing management
 ### Local Development Environment
 ```bash
 light up
-# Starts: PostgreSQL + Supabase API + Supabase Auth + Supabase Storage +
-#         Supabase Studio + Traefik SSL Proxy + Your App Proxy
-# Result: Complete self-hosted BaaS stack identical to production
+# Development mode: Proxies to Supabase CLI (supabase start)
+# Result: Traefik SSL Proxy → Supabase CLI services + Your App
 ```
 
-### Production Deployment Environment
+### Production Stack (Local Testing)
+```bash
+light up production
+# Production mode: Deploys complete self-hosted stack
+# Starts: PostgreSQL + Supabase API + Auth + Storage + Realtime + Studio
+# Runs: Database migrations via Supabase CLI
+# Result: Complete self-hosted BaaS stack at local.lightstack.dev
+```
+
+### Production Deployment (Coming Soon)
 ```bash
 light deploy production
-# SSH to server → git checkout tag → light up --env production
-# Deploys: Same PostgreSQL + Same Supabase services + Same Traefik + Your App
-# Result: Identical stack, different domain (yourdomain.com vs lvh.me)
+# SSH to server → git checkout tag → light up production
+# Deploys: Same stack on remote server with real domain + Let's Encrypt
+# Result: Identical stack at yourdomain.com
 ```
 
 ### Why This Matters
@@ -165,21 +173,30 @@ For more help: light [command] --help
 
 ## Current Implementation Status
 
-### Completed (Foundation Phase)
-- ✅ Core command structure (`init`, `up`, `down`, `status`, `logs`, `deploy`)
+### ✅ Completed (Self-Hosted BaaS Phase)
+- ✅ Core command structure (`init`, `up`, `down`, `status`, `logs`, `deploy`, `env`)
 - ✅ mkcert integration for local SSL certificates
 - ✅ Dynamic Traefik routing configuration generation
 - ✅ BaaS service auto-detection (Supabase config detection)
 - ✅ Cosmiconfig-based configuration management with Zod validation
 - ✅ Functional subdomain mapping strategy
 - ✅ Command aliases and proper CLI UX
+- ✅ **Complete Supabase Docker stack generation** (PostgreSQL, Auth, API, Storage, Studio, Realtime, Meta)
+- ✅ **Environment management** (`light env add/list/remove` for deployment targets)
+- ✅ **Automatic database migrations** (integrates Supabase CLI for schema management)
+- ✅ **Database persistence** (PostgreSQL volumes for production data)
+- ✅ **Smart container health checking** (detects running/failed containers with recovery guidance)
+- ✅ **Proper Docker project naming** (uses Lightstack project name for container isolation)
+- ✅ **Early validation** (checks for Supabase CLI and project before deployment)
+- ✅ **Production-grade error handling** (actionable error messages with recovery steps)
 
-### Missing (Core Value - Self-Hosted BaaS Deployment)
-- ❌ **Complete Supabase Docker stack generation** (PostgreSQL, Auth, API, Storage, Studio)
-- ❌ **Production deployment pipeline** (GitOps via SSH + git checkout + light up)
-- ❌ **Database persistence** (PostgreSQL volumes and backup strategies)
-- ❌ **Let's Encrypt integration** (Traefik automatic HTTPS for production domains)
-- ❌ **Optional self-hosting** (support both self-hosted and hosted BaaS modes)
+### ⏳ In Progress / Next Steps
+- ⏳ **Remote deployment pipeline** (GitOps via SSH + git checkout + light up)
+- ⏳ **Let's Encrypt integration** (Traefik automatic HTTPS for production domains)
+- ⏳ **Container image building** (for custom app services)
+- ⏳ **Zero-downtime deployments** (rolling updates and health checks)
+- ⏳ **CI/CD generation** (GitHub Actions workflows)
+- ⏳ **Database backup strategies** (automated backups for production)
 
 ### Critical Architecture Decisions for Future Implementation
 

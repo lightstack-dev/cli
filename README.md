@@ -63,12 +63,14 @@ light deploy production
 
 ### Development
 - Node.js 20+
-- Docker Desktop (for local proxy infrastructure)
+- Docker Desktop (for local infrastructure)
 - [mkcert](https://github.com/FiloSottile/mkcert) (auto-installed, for local HTTPS)
+- [Supabase CLI](https://supabase.com/docs/guides/local-development) (if using self-hosted Supabase)
 
-### Production (Optional)
+### Production
 - Docker-compatible VPS or cloud server
 - Domain name for your application
+- [Supabase CLI](https://supabase.com/docs/guides/local-development) (for database migrations)
 
 ## 🤔 Why Self-Host Your BaaS?
 
@@ -106,64 +108,89 @@ npx light init
 
 ## 📖 Usage
 
-### Initialize Proxy Configuration
+### Initialize Project
 
 ```bash
 light init
 ```
 
 This creates:
-- `light.config.yaml` - Proxy configuration
-- `.light/` directory with Traefik configuration
+- `light.config.yaml` - Project configuration
+- `.light/` directory with Docker infrastructure
 
 ### Development Workflow
 
+**Standard Development** (proxies to localhost):
 ```bash
-# 1. Start the proxy (only needs to be done once)
+# 1. Start the local infrastructure
 light up
 
 # 2. Start your app normally (separate terminal)
 npm run dev
-# or: yarn dev, bun dev, pnpm dev, etc.
 
-# 3. Access via nice URLs
+# 3. Access via HTTPS:
 # https://app.lvh.me → your app
 # https://router.lvh.me → routing dashboard
 ```
 
-**With Supabase** (auto-detected):
+**Self-Hosted BaaS Development** (complete Supabase stack):
 ```bash
-# Start Supabase normally
-supabase start
+# 1. Initialize Supabase project (first time only)
+supabase init
 
-# Start Lightstack proxy
+# 2. Start Lightstack infrastructure
 light up
 
-# Start your app
+# 3. Start your app
 npm run dev
 
-# Access everything via HTTPS:
-# https://app.lvh.me → your app
-# https://api.lvh.me → Supabase API
-# https://studio.lvh.me → Supabase Studio
+# 4. Access everything via HTTPS:
+# https://app.lvh.me → your app (proxied to localhost:3000)
+# https://api.lvh.me → self-hosted Supabase API
+# https://studio.lvh.me → self-hosted Supabase Studio
 ```
 
-### Deployment (Coming Soon)
+### Production Deployment
 
-The `light deploy` command is under development. Once complete, it will handle:
-- Docker image building
-- File upload to server
-- Traefik configuration with Let's Encrypt
-- Zero-downtime deployment
-- Automatic rollback on failure
+**Deploy Self-Hosted Supabase Stack:**
+```bash
+# 1. Create deployment target
+light env add production \
+  --host your-server.com \
+  --domain yourdomain.com \
+  --ssl-email your@email.com
+
+# 2. Test production stack locally (optional but recommended)
+light up production
+# Access at: https://api.local.lightstack.dev, https://studio.local.lightstack.dev
+
+# 3. Deploy to production server (coming soon)
+light deploy production
+```
+
+**What gets deployed:**
+- Complete self-hosted Supabase stack (PostgreSQL, Auth, API, Storage, Studio)
+- Your application containers
+- Traefik reverse proxy with Let's Encrypt SSL
+- Database migrations applied automatically
+- Persistent volumes for data storage
 
 ### Other Commands
 
 ```bash
-light down             # Stop proxy
-light status           # Show proxy and service status
-light logs             # View proxy logs
+# Infrastructure management
+light down             # Stop local infrastructure
+light down production  # Stop production stack (local testing)
+light status           # Show infrastructure and service status
+light logs             # View all logs
 light logs traefik     # View specific service logs
+
+# Environment management
+light env list         # List all deployment targets
+light env add <name>   # Add deployment target
+light env remove <name> # Remove deployment target
+
+# Utility commands
 light --help           # Show all available commands
 light --version        # Show CLI version
 
@@ -172,8 +199,6 @@ light start            # Same as "light up"
 light stop             # Same as "light down"
 light ps               # Same as "light status"
 ```
-
-**Note**: Lightstack CLI only handles local development proxying. Use your existing tools normally (`npm run dev`, `supabase start`, etc.).
 
 ## 🔧 Configuration
 
@@ -189,40 +214,80 @@ services:
   - name: admin       # Creates https://admin.lvh.me
     type: react
     port: 4000
+
+# Optional: Deployment targets
+environments:
+  production:
+    host: your-server.com
+    domain: yourdomain.com
+    ssl_email: your@email.com
+  staging:
+    host: staging-server.com
+    domain: staging.yourdomain.com
+    ssl_email: your@email.com
 ```
 
 ### Domain Configuration (Optional)
 
 ```yaml
 name: my-project
-domain: lvh.me        # Default, or use custom.dev, localhost.test, etc.
+domain: lvh.me        # Default for development
 services:
   - name: app
     port: 3000
     # Results in: https://app.{domain}
 ```
 
-### Environment Variables (Optional)
+### Environment Variables
 
+Generated automatically in `.light/.env.supabase` for production deployments:
 ```bash
-# .env
-PROJECT_NAME=my-project
+# Supabase secrets (auto-generated)
+POSTGRES_PASSWORD=...
+JWT_SECRET=...
+ANON_KEY=...
+SERVICE_KEY=...
+
+# SMTP configuration (you provide)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your@email.com
+SMTP_PASS=your-app-password
 ```
 
 ## 🏗️ Architecture
 
 **Complete self-hosted BaaS stack with identical dev/prod infrastructure:**
 
-### Local Development
+### Local Development (Standard Mode)
 ```
 ┌─ Docker Network ────────────────────────────────────────┐
 │                                                         │
-│  Your App (localhost:3000) ← Traefik ← https://app.lvh.me    │
-│  ├─ Supabase API           ← Traefik ← https://api.lvh.me    │
-│  ├─ Supabase Studio        ← Traefik ← https://studio.lvh.me │
-│  ├─ PostgreSQL (container)                             │
-│  ├─ Supabase Auth                                      │
-│  └─ Supabase Storage                                   │
+│  Traefik (HTTPS proxy)                                 │
+│    ↓ https://app.lvh.me                                │
+│  Your App (localhost:3000)                             │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Local Development (Self-Hosted BaaS)
+```
+┌─ Docker Network ────────────────────────────────────────┐
+│                                                         │
+│  Traefik (HTTPS proxy) ─────────────────────────────┐  │
+│    ├─ https://app.lvh.me → localhost:3000           │  │
+│    ├─ https://api.lvh.me → Kong API Gateway         │  │
+│    └─ https://studio.lvh.me → Supabase Studio       │  │
+│                                                      │  │
+│  Complete Self-Hosted Supabase Stack:                │  │
+│    ├─ PostgreSQL (persistent data)                   │  │
+│    ├─ Kong API Gateway (routing)                     │  │
+│    ├─ GoTrue (authentication)                        │  │
+│    ├─ PostgREST (database API)                       │  │
+│    ├─ Realtime (subscriptions)                       │  │
+│    ├─ Storage (file management)                      │  │
+│    ├─ Studio (admin UI)                              │  │
+│    └─ Postgres Meta (schema management)              │  │
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -231,12 +296,20 @@ PROJECT_NAME=my-project
 ```
 ┌─ Docker Network ────────────────────────────────────────┐
 │                                                         │
-│  Your App (container)      ← Traefik ← https://yourdomain.com   │
-│  ├─ Supabase API           ← Traefik ← https://api.yourdomain.com │
-│  ├─ Supabase Studio        ← Traefik ← https://studio.yourdomain.com │
-│  ├─ PostgreSQL (container) [persistent volumes]       │
-│  ├─ Supabase Auth                                      │
-│  └─ Supabase Storage                                   │
+│  Traefik (HTTPS + Let's Encrypt) ───────────────────┐  │
+│    ├─ https://yourdomain.com → Your App (container) │  │
+│    ├─ https://api.yourdomain.com → Kong             │  │
+│    └─ https://studio.yourdomain.com → Studio        │  │
+│                                                      │  │
+│  Complete Self-Hosted Supabase Stack:                │  │
+│    ├─ PostgreSQL (persistent volumes + backups)      │  │
+│    ├─ Kong API Gateway                               │  │
+│    ├─ GoTrue (authentication)                        │  │
+│    ├─ PostgREST (database API)                       │  │
+│    ├─ Realtime (subscriptions)                       │  │
+│    ├─ Storage (file management)                      │  │
+│    ├─ Studio (admin UI)                              │  │
+│    └─ Postgres Meta (schema management)              │  │
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -256,18 +329,20 @@ PROJECT_NAME=my-project
 
 ## 🛠️ Works With
 
-### Development
-- **Any web framework** that runs on localhost (React, Vue, Nuxt, Next.js, SvelteKit, etc.)
-- **Self-hosted BaaS**: Complete Supabase stack (PostgreSQL, Auth, API, Storage, Studio)
-- **Your existing tools**: Keep using `npm run dev`, standard development workflow
-- **Optional**: Use hosted BaaS services if you prefer (Supabase hosted, Firebase, etc.)
+### BaaS Platforms
+- ✅ **Supabase** - Complete self-hosted stack (PostgreSQL, Auth, API, Storage, Studio, Realtime)
+- 🚧 **Firebase** - Coming soon
+- 🚧 **PocketBase** - Coming soon
 
-### Production
-- **Any Docker-compatible server** (VPS, cloud instances, dedicated servers)
-- **Self-hosted database**: PostgreSQL with persistent volumes and automated backups
-- **Complete BaaS stack**: All Supabase services self-hosted on your infrastructure
-- **Cost control**: Predictable server costs instead of per-usage BaaS pricing
-- **Data sovereignty**: Your data stays on your servers, full compliance control
+### Deployment Targets
+- ✅ **Local development** - Standard mode (proxy only) or self-hosted BaaS
+- ✅ **Local production testing** - Full production stack on localhost (local.lightstack.dev)
+- 🚧 **Remote servers** - GitOps deployment via SSH (coming soon)
+- 🚧 **Docker-compatible platforms** - VPS, cloud instances, dedicated servers
+
+### Frameworks
+- **Any web framework** that runs on localhost (React, Vue, Nuxt, Next.js, SvelteKit, etc.)
+- **Your existing tools** - Keep using `npm run dev`, standard development workflow
 
 ## 📚 Documentation
 
@@ -283,22 +358,27 @@ This CLI is part of the [Lightstack](https://github.com/lightstack-dev) ecosyste
 ## 🛣️ Roadmap
 
 ### Completed ✅
-- [x] **Local development**: Production-grade proxy with HTTPS
-- [x] **Service discovery**: Auto-detect and proxy BaaS services
-- [x] **Infrastructure consistency**: Same Traefik patterns dev to prod
-- [x] **Configuration management**: Type-safe config with validation
-- [x] **Basic deployment**: Docker Compose generation and deployment structure
-- [x] **Monitoring**: Service status and log aggregation
+- [x] **Local HTTPS proxy** - Production-grade reverse proxy with mkcert
+- [x] **Self-hosted Supabase** - Complete BaaS stack deployment (8 services)
+- [x] **Environment management** - Multiple deployment targets support
+- [x] **Automatic migrations** - Database schema management via Supabase CLI
+- [x] **Local production testing** - Full production stack on localhost
+- [x] **Smart health checks** - Container status monitoring and recovery
+- [x] **Configuration management** - Type-safe config with validation
+- [x] **Service monitoring** - Status checks and log aggregation
 
 ### In Progress 🚧
-- [ ] **Production deployment**: Full zero-downtime deployment pipeline
-- [ ] **Multi-environment**: Staging, preview environments
-- [ ] **Additional BaaS**: Firebase, PocketBase auto-detection
+- [ ] **Remote deployment** - GitOps deployment via SSH
+- [ ] **Let's Encrypt SSL** - Automatic HTTPS for production domains
+- [ ] **Container image building** - Custom app containerization
+- [ ] **Zero-downtime deployments** - Blue-green deployment strategy
 
 ### Future 🔮
-- [ ] **CI/CD integration**: GitHub Actions, GitLab CI templates
-- [ ] **Monitoring & observability**: Metrics, tracing, alerting
-- [ ] **Team collaboration**: Shared environments, config templates
+- [ ] **Additional BaaS platforms** - Firebase, PocketBase, Appwrite
+- [ ] **CI/CD integration** - GitHub Actions, GitLab CI templates
+- [ ] **Database backups** - Automated backup and restore procedures
+- [ ] **Monitoring & observability** - Metrics, tracing, alerting
+- [ ] **Team collaboration** - Shared environments, config templates
 
 ## 💻 Development
 

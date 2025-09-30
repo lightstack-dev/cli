@@ -8,15 +8,15 @@
 Lightstack CLI provides focused commands for development workflow orchestration. It does not pass through commands to other tools - users interact with BaaS CLIs directly for their specific needs.
 
 ```bash
-light init [project-name]     # Initialize new project
-light up                      # Start development environment
-light deploy [environment]    # Deploy to target environment
-light env <subcommand>         # Manage deployment environments
-light status                  # Show project and services status
-light logs [service]          # Show service logs
-light down                    # Stop development environment
-light --help                  # Show help
-light --version               # Show version
+light init [project-name]        # Initialize new project
+light up [environment]           # Start local or production stack
+light env <subcommand>           # Manage deployment targets
+light status                     # Show infrastructure status
+light logs [service]             # Show service logs
+light down [environment]         # Stop infrastructure
+light deploy [environment]       # Deploy to remote server (coming soon)
+light --help                     # Show help
+light --version                  # Show version
 ```
 
 **Note**: Unknown commands will result in an error with helpful suggestions. For BaaS-specific operations (e.g., Supabase migrations), use the respective CLI tools directly.
@@ -58,46 +58,71 @@ Next steps:
 - Docker not available (show installation instructions)
 - mkcert installation fails (show manual setup)
 
-### `light up`
+### `light up [environment]`
 
-**Purpose**: Start development environment (local or remote via `--env` flag)
+**Purpose**: Start local infrastructure (development mode) or production stack locally for testing
 
 **Inputs**:
-- `--env <name>`: Deployment target environment from light.config.yml (e.g., development, production, staging, uat)
-- `--build`: Force rebuild of containers
+- `environment` (optional positional): Target environment (defaults to 'development')
+  - `development`: Standard proxy mode or self-hosted BaaS if Supabase project detected
+  - `production`: Full self-hosted Supabase stack for local production testing
 - `--detach`: Run in background (default: true)
 
 **Environment Resolution**:
-- Values come from configured `deployments` in light.config.yml
-- Defaults to 'development' if none specified
-- If specified environment not found, prompts user to configure it via `light env add`
-- Environment determines which Docker Compose overrides to use (dev.yml, prod.yml, staging.yml, etc.)
+- Development (default): Proxy mode, or self-hosted BaaS if `supabase/` directory exists
+- Production/other: Generates complete self-hosted Supabase stack from config
 
-**Behavior**:
+**Behavior for Development**:
 1. Validate Lightstack project exists (light.config.yml)
-2. Check if specified environment is configured; if not, offer to run `light env add`
-3. Check Docker daemon is running
-4. Validate all service dependencies
-5. Generate environment-specific Docker Compose override if needed
-6. Execute: `docker compose -f docker-compose.yml -f docker-compose.<env>.yml up -d`
-7. Wait for health checks to pass
-8. Display service URLs and status
+2. Check Docker daemon is running
+3. Start Traefik proxy
+4. If `supabase/` exists: Start complete self-hosted Supabase stack (8 services)
+5. Apply database migrations automatically via `supabase db push`
+6. Display service URLs
 
-**Success Output**:
+**Behavior for Production (local testing)**:
+1. Validate prerequisites (Supabase CLI, supabase/ directory)
+2. Check if environment configured in light.config.yml
+3. Generate complete Supabase Docker Compose stack with secure secrets
+4. Start all services with health checks
+5. Apply database migrations automatically
+6. Display URLs (using local.lightstack.dev domain)
+
+**Success Output (Development)**:
 ```
-✓ Docker daemon running
-✓ Validating service configuration
-✓ Starting services...
-  ↳ traefik (reverse proxy)    https://localhost
-  ↳ my-app (frontend)          https://my-app.lvh.me
-  ↳ supabase (database)        https://supabase.lvh.me
+🚀 Starting local infrastructure...
+✅ Local infrastructure started
 
-All services running. Press Ctrl+C to stop.
+Services running:
+  ✓ https://app.lvh.me          → localhost:3000
+  ✓ https://api.lvh.me           → Supabase API
+  ✓ https://studio.lvh.me        → Supabase Studio
+  ✓ https://router.lvh.me        → Traefik dashboard
+
+Start your app: npm run dev
+Stop with: light down
+```
+
+**Success Output (Production - local testing)**:
+```
+🚀 Starting production stack locally...
+✅ Production stack started
+
+Services running:
+  ✓ https://api.local.lightstack.dev      → Supabase API
+  ✓ https://studio.local.lightstack.dev   → Supabase Studio
+
+Database migrations applied
+Secrets saved to .light/.env.supabase
+Stop with: light down production
 ```
 
 **Error Conditions**:
 - No Lightstack project found (suggest `light init`)
 - Docker not running (show start instructions)
+- Production mode without Supabase project (show Supabase CLI docs)
+- Supabase CLI not installed for production (show installation link)
+- Container health checks fail (show recovery options and logs)
 - Port conflicts (suggest alternatives)
 - Service startup failures (show logs and troubleshooting)
 

@@ -104,65 +104,72 @@
 ### CLI Commands Implementation
 - [x] T041 Main CLI entry point with Commander.js and shebang in src/cli.ts
 - [x] T042 'light init' command implementation in src/commands/init.ts (with YAML config and BaaS detection)
-- [x] T043 'light up' command implementation in src/commands/up.ts (with BaaS proxy generation)
+- [x] T043 'light up' command implementation in src/commands/up.ts (with self-hosted Supabase stack generation)
 - [ ] T044 'light deploy' command implementation in src/commands/deploy.ts
-- [ ] T045 'light status' command implementation in src/commands/status.ts
-- [ ] T046 'light logs' command implementation in src/commands/logs.ts
+- [x] T045 'light status' command implementation in src/commands/status.ts
+- [x] T046 'light logs' command implementation in src/commands/logs.ts
 - [x] T047 'light down' command implementation in src/commands/down.ts
+- [x] T048 'light env' command implementation in src/commands/env.ts (add/remove/list deployment targets)
 
 ### Core Services
-- [x] T048 Docker service for shell commands in src/services/docker.ts (implemented inline in commands)
-- [x] T049 mkcert service for SSL certificates in src/services/mkcert.ts (implemented inline in init command)
-- [x] T050 Environment service for .env files in src/services/environment.ts (implemented inline in commands)
-- [x] T051 Shell execution wrapper with execa in src/services/shell.ts (using child_process.execSync directly)
+- [x] T049 Docker service for shell commands in src/services/docker.ts (implemented inline in commands)
+- [x] T050 mkcert service for SSL certificates in src/services/mkcert.ts (implemented inline in init command)
+- [x] T051 Environment service for .env files in src/services/environment.ts (implemented inline in commands)
+- [x] T052 Shell execution wrapper with execa in src/services/shell.ts (using child_process.execSync directly)
+- [x] T053 Supabase stack generator in src/utils/supabase-stack.ts (complete self-hosted BaaS deployment)
 
 ## Phase 3.4: Integration
 
 ### Error Handling
-- [x] T052 Custom error classes in src/errors/index.ts (implemented inline with proper error messages)
-- [x] T053 Error formatting with chalk in src/utils/error-formatter.ts (implemented inline in commands)
-- [x] T054 Global error handler for CLI in src/cli.ts
+- [x] T054 Custom error classes in src/errors/index.ts (implemented inline with proper error messages)
+- [x] T055 Error formatting with chalk in src/utils/error-formatter.ts (implemented inline in commands)
+- [x] T056 Global error handler for CLI in src/cli.ts
+- [x] T057 Smart container health checking with recovery guidance in src/commands/up.ts
 
 ### User Experience
-- [x] T055 Progress indicators with ora in src/utils/spinner.ts (implemented inline in commands)
-- [x] T056 Colored output formatter with chalk in src/utils/output.ts (implemented inline in commands)
-- [x] T057 Update notifier integration in src/cli.ts
-- [x] T058 Help text and command aliases in src/cli.ts
+- [x] T058 Progress indicators with ora in src/utils/spinner.ts (implemented inline in commands)
+- [x] T059 Colored output formatter with chalk in src/utils/output.ts (implemented inline in commands)
+- [x] T060 Update notifier integration in src/cli.ts
+- [x] T061 Help text and command aliases in src/cli.ts
 
 ### Prerequisites Validation
-- [x] T059 Docker daemon check in src/validators/docker.ts (implemented inline in up command)
-- [x] T060 Project validation (light.config.yml exists) in src/validators/project.ts (implemented inline in commands)
-- [x] T061 Port availability checker in src/validators/ports.ts (implemented inline in init command)
+- [x] T062 Docker daemon check in src/validators/docker.ts (implemented inline in up command)
+- [x] T063 Project validation (light.config.yml exists) in src/validators/project.ts (implemented inline in commands)
+- [x] T064 Port availability checker in src/validators/ports.ts (implemented inline in init command)
+- [x] T065 Supabase CLI and project validation for production deployments in src/commands/up.ts
+- [x] T066 Automatic database migrations via Supabase CLI in src/commands/up.ts
 
 ## Phase 3.5: Polish
 
 ### Unit Tests
-- [ ] T062 [P] Unit tests for configuration validator in tests/unit/test_config_validator.ts
-- [ ] T063 [P] Unit tests for Docker Compose generator in tests/unit/test_compose_generator.ts
-- [ ] T064 [P] Unit tests for error formatters in tests/unit/test_error_formatter.ts
-- [ ] T065 [P] Unit tests for shell wrapper in tests/unit/test_shell.ts
+- [ ] T067 [P] Unit tests for configuration validator in tests/unit/test_config_validator.ts
+- [ ] T068 [P] Unit tests for Docker Compose generator in tests/unit/test_compose_generator.ts
+- [ ] T069 [P] Unit tests for error formatters in tests/unit/test_error_formatter.ts
+- [ ] T070 [P] Unit tests for shell wrapper in tests/unit/test_shell.ts
+- [ ] T071 [P] Unit tests for Supabase stack generator in tests/unit/test_supabase_stack.ts
 
 ### Documentation and Build
-- [ ] T066 Create package build script with TypeScript compiler
-- [ ] T067 Add npm publish configuration to package.json
-- [ ] T068 [P] Generate API documentation with TypeDoc
-- [ ] T069 [P] Create CHANGELOG.md with initial version
+- [x] T072 Create package build script with TypeScript compiler
+- [x] T073 Add npm publish configuration to package.json
+- [ ] T074 [P] Generate API documentation with TypeDoc
+- [x] T075 [P] Create CHANGELOG.md with initial version
 
 ### Documentation Site (https://cli.lightstack.dev)
-- [ ] T070 Set up VitePress documentation site in docs/ directory
-- [ ] T071 Create documentation structure (guides, API reference, examples)
-- [ ] T072 Configure VitePress theme with Lightstack branding
-- [ ] T073 Extract CLI command docs from Commander help text to docs/commands/
-- [ ] T074 Convert quickstart.md to interactive getting-started guide
-- [ ] T075 Create GitHub Actions workflow for docs deployment in .github/workflows/docs.yml
-- [ ] T076 Configure Vercel/Netlify deployment for cli.lightstack.dev domain
-- [ ] T077 Set up DNS records pointing cli.lightstack.dev to hosting
+- [ ] T076 Set up VitePress documentation site in docs/ directory
+- [ ] T077 Create documentation structure (guides, API reference, examples)
+- [ ] T078 Configure VitePress theme with Lightstack branding
+- [ ] T079 Extract CLI command docs from Commander help text to docs/commands/
+- [ ] T080 Convert quickstart.md to interactive getting-started guide
+- [ ] T081 Create GitHub Actions workflow for docs deployment in .github/workflows/docs.yml
+- [ ] T082 Configure Vercel/Netlify deployment for cli.lightstack.dev domain
+- [ ] T083 Set up DNS records pointing cli.lightstack.dev to hosting
 
 ### End-to-End Validation
-- [ ] T078 Run complete quickstart.md workflow manually
-- [ ] T079 Verify all CLI commands match contract specifications
-- [ ] T080 Test cross-platform compatibility (Windows/Mac/Linux)
-- [ ] T081 Verify documentation site builds and deploys correctly
+- [ ] T084 Run complete quickstart.md workflow manually
+- [ ] T085 Verify all CLI commands match contract specifications
+- [ ] T086 Test cross-platform compatibility (Windows/Mac/Linux)
+- [ ] T087 Verify documentation site builds and deploys correctly
+- [x] T088 Test self-hosted Supabase deployment locally (light up production)
 
 ## Dependencies
 - Setup (T001-T008) must complete first
