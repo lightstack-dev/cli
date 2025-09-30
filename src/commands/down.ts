@@ -11,7 +11,7 @@ export function downCommand(options: DownOptions = {}) {
     const removeVolumes = options.volumes || false;
 
     // Check if project is initialized
-    if (!existsSync('light.config.yaml') && !existsSync('light.config.yml')) {
+    if (!existsSync('light.config.yml') && !existsSync('light.config.yml')) {
       throw new Error('No Lightstack project found.');
     }
 

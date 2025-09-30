@@ -19,7 +19,7 @@ export function initCommand(projectName?: string, options: InitOptions = {}) {
     }
 
     // Check if project already exists
-    if ((existsSync('light.config.yaml') || existsSync('light.config.yml')) && !force) {
+    if ((existsSync('light.config.yml') || existsSync('light.config.yml')) && !force) {
       throw new Error('Project already exists. Use --force to overwrite.');
     }
 
@@ -45,7 +45,7 @@ export function initCommand(projectName?: string, options: InitOptions = {}) {
       lineWidth: 80,
       noRefs: true
     });
-    writeFileSync('light.config.yaml', yamlConfig);
+    writeFileSync('light.config.yml', yamlConfig);
 
     // Create basic Docker Compose files
     createDockerComposeFiles(project);

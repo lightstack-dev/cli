@@ -13,7 +13,7 @@ export function logsCommand(service: string | undefined, options: LogsOptions = 
     const tail = options.tail || '50';
 
     // Check if project is initialized
-    if (!existsSync('light.config.yaml') && !existsSync('light.config.yml')) {
+    if (!existsSync('light.config.yml') && !existsSync('light.config.yml')) {
       throw new Error('No Lightstack project found. Run "light init" first.');
     }
 

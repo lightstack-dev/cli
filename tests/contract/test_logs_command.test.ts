@@ -3,15 +3,18 @@ import { execSync } from 'child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import yaml from 'js-yaml';
 
 describe('light logs command', () => {
   let tempDir: string;
-  const cli = 'bun run src/cli.ts';
+  let originalDir: string;
+  const cli = `node ${join(__dirname, '..', '..', 'dist', 'cli.js')}`;
 
   beforeEach(() => {
+    originalDir = process.cwd();
     tempDir = mkdtempSync(join(tmpdir(), 'light-test-'));
     process.chdir(tempDir);
-    writeFileSync('light.config.json', JSON.stringify({
+    writeFileSync('light.config.yml', yaml.dump({
       name: 'test-project',
       services: [
         { name: 'app', type: 'nuxt', port: 3000 },
@@ -21,7 +24,7 @@ describe('light logs command', () => {
   });
 
   afterEach(() => {
-    process.chdir(__dirname);
+    process.chdir(originalDir);
     rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -74,11 +77,11 @@ describe('light logs command', () => {
   });
 
   it('should require project to exist', () => {
-    rmSync('light.config.json');
+    rmSync('light.config.yml');
 
     expect(() => {
       execSync(`${cli} logs`, { encoding: 'utf-8' });
-    }).toThrow(/no.*project/i);
+    }).toThrow(/No Lightstack project found/i);
   });
 });
 

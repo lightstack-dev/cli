@@ -131,7 +131,7 @@
 
 ### Prerequisites Validation
 - [x] T059 Docker daemon check in src/validators/docker.ts (implemented inline in up command)
-- [x] T060 Project validation (light.config.yaml exists) in src/validators/project.ts (implemented inline in commands)
+- [x] T060 Project validation (light.config.yml exists) in src/validators/project.ts (implemented inline in commands)
 - [x] T061 Port availability checker in src/validators/ports.ts (implemented inline in init command)
 
 ## Phase 3.5: Polish

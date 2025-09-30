@@ -1,7 +1,8 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { execSync } from 'child_process';
+import { execSync, spawnSync } from 'child_process';
 import chalk from 'chalk';
 import yaml from 'js-yaml';
+import { confirm } from '@inquirer/prompts';
 import { setupMkcert, generateTraefikTlsConfig } from '../utils/mkcert.js';
 import { getProjectConfig, type ServiceConfig } from '../utils/config.js';
 
@@ -10,7 +11,7 @@ interface UpOptions {
   detach?: boolean;
 }
 
-export function upCommand(options: UpOptions = {}) {
+export async function upCommand(options: UpOptions = {}) {
   try {
     const env = options.env || 'development';
     const detach = options.detach !== false; // Default to true
@@ -20,6 +21,38 @@ export function upCommand(options: UpOptions = {}) {
 
     // Check prerequisites
     checkPrerequisites();
+
+    // Check if environment is configured for non-development
+    if (env !== 'development') {
+      const envExists = projectConfig.deployments?.some(d => d.name === env);
+      if (!envExists) {
+        console.log(chalk.yellow('⚠️'), `Environment '${env}' is not configured.`);
+
+        const shouldConfigure = await confirm({
+          message: `Would you like to configure the '${env}' environment now?`,
+          default: true
+        });
+
+        if (shouldConfigure) {
+          // Run light env add command
+          console.log('\n' + chalk.blue('→'), 'Running:', chalk.cyan(`light env add ${env}`));
+          const cliPath = process.argv[1] || 'light';
+          const result = spawnSync('node', [cliPath, 'env', 'add', env], {
+            stdio: 'inherit',
+            shell: true
+          });
+
+          if (result.status !== 0) {
+            throw new Error(`Failed to configure environment '${env}'`);
+          }
+
+          console.log('\n' + chalk.green('✅'), `Environment '${env}' configured. Now continuing with deployment...\n`);
+        } else {
+          console.log('\nTo configure later, run:', chalk.cyan(`light env add ${env}`));
+          process.exit(0);
+        }
+      }
+    }
 
     // Check environment setup
     checkEnvironment(env);
@@ -76,7 +109,7 @@ export function upCommand(options: UpOptions = {}) {
 
 function checkPrerequisites() {
   // Check if project is initialized
-  if (!existsSync('light.config.yaml') && !existsSync('light.config.yml')) {
+  if (!existsSync('light.config.yml') && !existsSync('light.config.yml')) {
     throw new Error('No Lightstack project found. Run "light init" first.');
   }
 

@@ -50,7 +50,7 @@ interface LoadConfigResult {
 
 const MODULE_NAME = 'lightstack';
 const CONFIG_FILES = [
-  'light.config.yaml',
+  'light.config.yml',
   'light.config.yml',
   'light.config.json',
   '.lightstackrc.yaml',

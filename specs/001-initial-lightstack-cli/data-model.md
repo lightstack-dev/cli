@@ -60,7 +60,7 @@ Environment-specific deployment configuration that maps to deployment targets.
 - Environment variables managed separately by users
 - Each environment defines its Docker Compose file strategy
 
-**Example Configuration (light.config.yaml):**
+**Example Configuration (light.config.yml):**
 ```yaml
 name: my-project
 services:
@@ -127,7 +127,7 @@ Initiated → Building → Deploying → Health Check → Complete
 ### Configuration Files
 ```
 project-root/
-├── light.config.yaml     # Main project configuration (YAML)
+├── light.config.yml     # Main project configuration (YAML)
 ├── .env                  # User-managed environment variables (gitignored)
 ├── supabase/             # Supabase project files (if using Supabase)
 │   └── config.toml       # Supabase configuration (used for detection)

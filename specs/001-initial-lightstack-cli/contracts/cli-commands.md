@@ -11,6 +11,7 @@ Lightstack CLI provides focused commands for development workflow orchestration.
 light init [project-name]     # Initialize new project
 light up                      # Start development environment
 light deploy [environment]    # Deploy to target environment
+light env <subcommand>         # Manage deployment environments
 light status                  # Show project and services status
 light logs [service]          # Show service logs
 light down                    # Stop development environment
@@ -33,9 +34,9 @@ light --version               # Show version
 
 **Behavior**:
 1. Validate project name (URL-safe, no spaces)
-2. Create `light.config.json` with default configuration
+2. Create `light.config.yml` with default configuration
 3. Generate base Docker Compose files
-4. Create `.env.development` and `.env.production` templates
+4. Create `.env` template (environment files created on demand)
 5. Install mkcert and generate local certificates
 6. Display next steps to user
 
@@ -62,24 +63,25 @@ Next steps:
 **Purpose**: Start development environment (local or remote via `--env` flag)
 
 **Inputs**:
-- `--env <name>`: Deployment target environment from light.config.yaml (e.g., development, production, staging, uat)
+- `--env <name>`: Deployment target environment from light.config.yml (e.g., development, production, staging, uat)
 - `--build`: Force rebuild of containers
 - `--detach`: Run in background (default: true)
 
 **Environment Resolution**:
-- Values come from configured `deployments` in light.config.yaml
-- Defaults to first deployment target if none specified (typically 'development')
-- Error if specified environment not found in configuration
+- Values come from configured `deployments` in light.config.yml
+- Defaults to 'development' if none specified
+- If specified environment not found, prompts user to configure it via `light env add`
 - Environment determines which Docker Compose overrides to use (dev.yml, prod.yml, staging.yml, etc.)
 
 **Behavior**:
-1. Validate Lightstack project exists (light.config.json)
-2. Check Docker daemon is running
-3. Validate all service dependencies
-4. Generate docker-compose.dev.yml with current configuration
-5. Execute: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d`
-6. Wait for health checks to pass
-7. Display service URLs and status
+1. Validate Lightstack project exists (light.config.yml)
+2. Check if specified environment is configured; if not, offer to run `light env add`
+3. Check Docker daemon is running
+4. Validate all service dependencies
+5. Generate environment-specific Docker Compose override if needed
+6. Execute: `docker compose -f docker-compose.yml -f docker-compose.<env>.yml up -d`
+7. Wait for health checks to pass
+8. Display service URLs and status
 
 **Success Output**:
 ```
@@ -104,7 +106,7 @@ All services running. Press Ctrl+C to stop.
 **Purpose**: Deploy application to specified environment
 
 **Inputs**:
-- `environment` (optional): Deployment target from light.config.yaml, defaults to 'production'
+- `environment` (optional): Deployment target from light.config.yml, defaults to 'production'
 - `--dry-run`: Show what would be deployed without executing
 - `--build`: Force rebuild before deployment
 - `--rollback`: Rollback to previous deployment
@@ -154,6 +156,106 @@ Git tag deployed: v1.2.3
 - Build failures (show build logs)
 - SSH connection failures (show connection diagnostics)
 - Health check failures (automatic rollback triggered)
+
+### `light env <subcommand>`
+
+**Purpose**: Manage deployment environments configuration
+
+**Subcommands**:
+- `light env add <name>`: Add a new deployment environment
+- `light env list`: List all configured environments
+- `light env remove <name>`: Remove an environment
+
+#### `light env add <name>`
+
+**Purpose**: Add a new deployment environment to light.config.yml
+
+**Inputs**:
+- `name`: Environment name (e.g., production, staging, uat)
+- `--host <host>`: SSH host address
+- `--domain <domain>`: Domain name for this environment
+- `--user <user>`: SSH user (defaults to ubuntu)
+- `--port <port>`: SSH port (defaults to 22)
+- `--no-ssl`: Disable SSL
+- `--ssl-email <email>`: Email for Let's Encrypt SSL
+
+**Behavior**:
+1. Validate environment name (lowercase, alphanumeric, hyphens only)
+2. Check environment doesn't already exist
+3. Collect configuration via interactive prompts or command line options
+4. Add deployment configuration to light.config.yml
+5. Preserve existing configuration and formatting
+
+**Interactive Flow** (when run without options):
+```
+📍 Deployment target configuration for 'production'
+
+Host (SSH address): prod.myserver.com
+Domain: example.com
+SSH user [ubuntu]: deploy
+SSH port [22]:
+Enable SSL [Y/n]: y
+SSL provider [letsencrypt]:
+SSL email: admin@example.com
+
+✅ Added 'production' environment to light.config.yml
+
+To deploy: light deploy production
+To edit: Update the configuration in light.config.yml
+```
+
+**Success Output**:
+```
+✅ Added 'production' environment to light.config.yml
+
+To deploy: light deploy production
+To edit: Update the configuration in light.config.yml
+```
+
+#### `light env list`
+
+**Purpose**: List all configured deployment environments
+
+**Success Output**:
+```
+Configured environments:
+
+● production
+  Host: prod.example.com
+  Domain: example.com
+  User: deploy
+  Port: 22
+  SSL: Enabled (letsencrypt)
+
+● staging
+  Host: staging.example.com
+  Domain: staging.example.com
+  User: ubuntu
+  Port: 22
+  SSL: Disabled
+
+Deploy with: light deploy <environment>
+Edit in: light.config.yml
+```
+
+#### `light env remove <name>`
+
+**Purpose**: Remove a deployment environment
+
+**Inputs**:
+- `name`: Environment name to remove
+- `--force`: Skip confirmation
+
+**Behavior**:
+1. Validate environment exists
+2. Confirm deletion (unless --force)
+3. Remove from light.config.yml
+4. Preserve other configuration
+
+**Success Output**:
+```
+✅ Removed 'staging' environment
+```
 
 ### `light status`
 

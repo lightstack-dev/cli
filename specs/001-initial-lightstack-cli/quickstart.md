@@ -28,14 +28,14 @@ light init
 ```
 
 **What happens**:
-- Creates `light.config.yaml` with proxy configuration
+- Creates `light.config.yml` with proxy configuration
 - Generates Traefik configuration for routing
 - Sets up certificate directories
 
 **Expected files created**:
 ```
 my-awesome-app/
-├── light.config.yaml
+├── light.config.yml
 └── .light/
     ├── docker-compose.yml      # Traefik proxy only
     ├── docker-compose.dev.yml  # Development overrides
@@ -122,7 +122,7 @@ Now that you have production-grade patterns working locally, deploy with identic
 
 ```bash
 # Configure production deployment target
-# Edit light.config.yaml to add:
+# Edit light.config.yml to add:
 deployments:
   - name: production
     host: your-server.com

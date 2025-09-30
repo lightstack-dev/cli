@@ -27,6 +27,7 @@ light deploy [environment]   # Deploy with identical infrastructure to productio
 
 ### Technology Stack
 - **Language**: TypeScript/Node.js 20+
+- **Package Manager**: Bun (not npm/yarn/pnpm)
 - **CLI Framework**: Commander.js
 - **Docker**: Shell out to `docker compose` commands
 - **SSL**: Traefik (production) + mkcert (local development)

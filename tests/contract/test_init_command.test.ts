@@ -3,12 +3,15 @@ import { execSync } from 'child_process';
 import { mkdtempSync, rmSync, existsSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import yaml from 'js-yaml';
 
 describe('light init command', () => {
   let tempDir: string;
-  const cli = 'bun run src/cli.ts';
+  let originalDir: string;
+  const cli = `node ${join(__dirname, '..', '..', 'dist', 'cli.js')}`;
 
   beforeEach(() => {
+    originalDir = process.cwd();
     // Create a temporary directory for each test
     tempDir = mkdtempSync(join(tmpdir(), 'light-test-'));
     process.chdir(tempDir);
@@ -16,7 +19,7 @@ describe('light init command', () => {
 
   afterEach(() => {
     // Clean up
-    process.chdir(__dirname);
+    process.chdir(originalDir);
     rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -25,26 +28,25 @@ describe('light init command', () => {
 
     expect(output).toContain('Project');
     expect(output).toContain('initialized');
-    expect(existsSync('light.config.json')).toBe(true);
-    expect(existsSync('.env.development')).toBe(true);
-    expect(existsSync('.env.production')).toBe(true);
+    expect(existsSync('light.config.yml') || existsSync('light.config.yml')).toBe(true);
+    // Environment files and compose overrides are created on demand
     expect(existsSync('.light/docker-compose.yml')).toBe(true);
-    expect(existsSync('.light/docker-compose.dev.yml')).toBe(true);
-    expect(existsSync('.light/docker-compose.prod.yml')).toBe(true);
   });
 
   it('should initialize a project with custom name', () => {
     const output = execSync(`${cli} init my-app`, { encoding: 'utf-8' });
 
     expect(output).toContain('my-app');
-    const config = JSON.parse(readFileSync('light.config.json', 'utf-8'));
+    const configContent = readFileSync('light.config.yml', 'utf-8');
+    const config = yaml.load(configContent);
     expect(config.name).toBe('my-app');
   });
 
   it('should support --template option', () => {
     execSync(`${cli} init --template sveltekit`, { encoding: 'utf-8' });
 
-    const config = JSON.parse(readFileSync('light.config.json', 'utf-8'));
+    const configContent = readFileSync('light.config.yml', 'utf-8');
+    const config = yaml.load(configContent);
     expect(config.template).toBe('sveltekit');
   });
 

@@ -12,6 +12,7 @@ import { downCommand } from './commands/down.js';
 import { statusCommand } from './commands/status.js';
 import { logsCommand } from './commands/logs.js';
 import { deployCommand } from './commands/deploy.js';
+import { envCommand } from './commands/env.js';
 
 // Get package.json for version and update checks
 const __filename = fileURLToPath(import.meta.url);
@@ -56,8 +57,8 @@ program
   .description('Start local proxy for development')
   .option('--env <name>', 'Environment to use', 'development')
   .option('--detach', 'Run in background', true)
-  .action((options: unknown) => {
-    upCommand(options as { env?: string; detach?: boolean });
+  .action(async (options: unknown) => {
+    await upCommand(options as { env?: string; detach?: boolean });
   });
 
 program
@@ -70,6 +71,8 @@ program
   .action((environment: string, options: unknown) => {
     deployCommand(environment, options as { dryRun?: boolean; build?: boolean; rollback?: boolean });
   });
+
+program.addCommand(envCommand());
 
 program
   .command('status')
@@ -98,8 +101,8 @@ program
   });
 
 // Command aliases
-program.command('start').description('Alias for "up"').action(() => {
-  upCommand({ env: 'development', detach: true });
+program.command('start').description('Alias for "up"').action(async () => {
+  await upCommand({ env: 'development', detach: true });
 });
 program.command('stop').description('Alias for "down"').action(() => {
   downCommand({ volumes: false });
