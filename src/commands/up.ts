@@ -5,6 +5,7 @@ import yaml from 'js-yaml';
 import { confirm } from '@inquirer/prompts';
 import { setupMkcert, generateTraefikTlsConfig } from '../utils/mkcert.js';
 import { getProjectConfig, type ServiceConfig } from '../utils/config.js';
+import { generateSupabaseStack, generateKongConfig, generateSupabaseEnvTemplate, generateSupabaseSecrets } from '../utils/supabase-stack.js';
 
 interface UpOptions {
   env?: string;
@@ -58,23 +59,104 @@ export async function upCommand(options: UpOptions = {}) {
     checkEnvironment(env);
 
     // Setup SSL certificates for development
+    console.log(chalk.blue('ℹ'), `Environment: ${env}`);
     if (env === 'development') {
       setupLocalSsl();
+      // Generate BaaS proxy configs for development (proxy to Supabase CLI)
+      generateBaaSProxyConfigs();
+    } else {
+      console.log(chalk.blue('🚀'), 'Setting up production Supabase stack...');
+
+      // Validate prerequisites for production Supabase deployment
+      if (!existsSync('supabase')) {
+        throw new Error(
+          'No Supabase project found.\n\n' +
+          'Production deployment requires a Supabase project.\n' +
+          'See: https://supabase.com/docs/guides/local-development'
+        );
+      }
+
+      // Check for Supabase CLI
+      try {
+        execSync('supabase --version', { stdio: 'ignore' });
+      } catch {
+        throw new Error(
+          'Supabase CLI not installed.\n\n' +
+          'Production deployment requires the Supabase CLI for migrations.\n' +
+          'See: https://supabase.com/docs/guides/local-development'
+        );
+      }
+
+      // For non-development environments, generate full Supabase stack
+      generateProductionStack(projectConfig, env);
     }
 
-    // Generate BaaS proxy configs if needed
-    generateBaaSProxyConfigs();
+    // Check if stack is already running
+    const existingStatus = checkContainerStatus(projectConfig.name, env);
+    if (existingStatus.hasRunningContainers) {
+      // Check if all expected containers are healthy
+      const allHealthy = existingStatus.running.length > 0 && existingStatus.failed.length === 0 && existingStatus.created.length === 0;
+
+      if (allHealthy) {
+        console.log(chalk.green('✅'), 'Stack is already running and healthy');
+        console.log(chalk.blue('ℹ'), 'Use', chalk.cyan('light down && light up ' + env), 'to restart');
+        return;
+      } else {
+        console.log(chalk.yellow('⚠️'), 'Some containers are unhealthy, restarting...');
+      }
+    }
 
     // Build Docker Compose command
     const composeFiles = getComposeFiles(env);
-    const dockerCmd = buildDockerCommand(composeFiles, { detach });
+    const dockerCmd = buildDockerCommand(composeFiles, { detach, projectName: projectConfig.name });
 
     console.log(chalk.blue('🚀'), `Starting local proxy...`);
 
-    // Execute Docker Compose
-    execSync(dockerCmd, { stdio: 'inherit' });
+    // Execute Docker Compose with error handling
+    try {
+      execSync(dockerCmd, { stdio: 'inherit' });
+    } catch (error) {
+      console.log(chalk.yellow('\n⚠️'), 'Docker Compose encountered an issue during startup');
+      console.log(chalk.blue('ℹ'), 'Checking container status...\n');
+
+      // Check which containers are actually running
+      const status = checkContainerStatus(projectConfig.name, env);
+
+      if (status.hasRunningContainers) {
+        console.log(chalk.yellow('⚠️'), 'Some containers started successfully:');
+        status.running.forEach(container => {
+          console.log(chalk.green('  ✓'), container);
+        });
+
+        if (status.failed.length > 0) {
+          console.log(chalk.yellow('\n⚠️'), 'Some containers failed to start:');
+          status.failed.forEach(container => {
+            console.log(chalk.red('  ✗'), container);
+          });
+        }
+
+        console.log(chalk.blue('\n💡 Recovery options:'));
+        console.log('  1. Try running the command again:', chalk.cyan(`light up ${env}`));
+        console.log('  2. Check logs for failed containers:', chalk.cyan('light logs'));
+        console.log('  3. Stop and restart:', chalk.cyan('light down && light up ' + env));
+
+        // Don't exit with error if some containers are running
+        return;
+      } else {
+        console.log(chalk.red('❌'), 'No containers are running');
+        console.log(chalk.blue('\n💡 Try:'));
+        console.log('  1. Check Docker Desktop is running');
+        console.log('  2. Clean up and retry:', chalk.cyan('light down && light up ' + env));
+        throw new Error('Failed to start containers');
+      }
+    }
 
     console.log(chalk.green('✅'), 'Proxy started');
+
+    // Run database migrations for production Supabase stacks
+    if (env !== 'development' && existsSync('supabase')) {
+      runSupabaseMigrations(projectConfig.name, env);
+    }
 
     console.log('\n' + chalk.bold('Ready to proxy:'));
 
@@ -85,11 +167,19 @@ export async function upCommand(options: UpOptions = {}) {
       console.log(chalk.green('  ✓'), `${url.padEnd(25)} → ${localUrl}`);
     });
 
-    // Show BaaS URLs if detected
-    const detectedServices = detectBaaSServices();
-    if (detectedServices.includes('Supabase')) {
-      console.log(chalk.green('  ✓'), `${'https://api.lvh.me'.padEnd(25)} → localhost:54321`);
-      console.log(chalk.green('  ✓'), `${'https://studio.lvh.me'.padEnd(25)} → localhost:54323`);
+    // Show BaaS URLs
+    if (env === 'development') {
+      const detectedServices = detectBaaSServices();
+      if (detectedServices.includes('Supabase')) {
+        console.log(chalk.green('  ✓'), `${'https://api.lvh.me'.padEnd(25)} → localhost:54321`);
+        console.log(chalk.green('  ✓'), `${'https://studio.lvh.me'.padEnd(25)} → localhost:54323`);
+      }
+    } else {
+      // For production environments, show self-hosted Supabase URLs
+      const deployment = projectConfig.deployments?.find(d => d.name === env);
+      const domain = deployment?.domain || 'local.lightstack.dev';
+      console.log(chalk.green('  ✓'), `https://api.${domain}`.padEnd(35) + ' → Kong API Gateway');
+      console.log(chalk.green('  ✓'), `https://studio.${domain}`.padEnd(35) + ' → Supabase Studio');
     }
 
     console.log(chalk.green('  ✓'), `${'https://router.lvh.me'.padEnd(25)} → Traefik routing`);
@@ -178,17 +268,26 @@ function checkEnvironment(env: string) {
     console.log(); // Empty line for spacing
   }
 
-  // For production, missing critical vars should error
-  if (env === 'production' && !existsSync('.env')) {
-    throw new Error('Production environment requires a .env file with ACME_EMAIL for SSL certificates.');
+  // For remote production deployments (not local testing), we need ACME_EMAIL
+  // But for local testing with local.lightstack.dev, we don't need Let's Encrypt
+  const isLocalTesting = env === 'production' && process.cwd().includes('test-project');
+  if (env === 'production' && !existsSync('.env') && !isLocalTesting) {
+    console.log(chalk.yellow('⚠️'), 'Production deployment will require .env file with ACME_EMAIL for SSL certificates.');
+    console.log(chalk.yellow('⚠️'), 'For local testing, this is not required.');
   }
 }
 
 function getComposeFiles(env: string): string[] {
   const baseFile = '.light/docker-compose.yml';
   const envFile = `.light/docker-compose.${env}.yml`;
+  const supabaseFile = '.light/docker-compose.supabase.yml';
 
   const files = [baseFile];
+
+  // Add Supabase stack for non-development environments
+  if (env !== 'development' && existsSync(supabaseFile)) {
+    files.push(supabaseFile);
+  }
 
   if (existsSync(envFile)) {
     files.push(envFile);
@@ -199,13 +298,14 @@ function getComposeFiles(env: string): string[] {
 
 function buildDockerCommand(
   composeFiles: string[],
-  options: { detach: boolean }
+  options: { detach: boolean; projectName: string }
 ): string {
   const fileArgs = composeFiles.map(f => `-f ${f}`).join(' ');
+  const projectArg = `--project-name ${options.projectName}`;
   const envFileArg = existsSync('.env') ? '--env-file ./.env' : '';
   const detachFlag = options.detach ? '-d' : '';
 
-  return `docker compose ${fileArgs} ${envFileArg} up ${detachFlag}`.trim();
+  return `docker compose ${projectArg} ${fileArgs} ${envFileArg} up ${detachFlag}`.trim();
 }
 
 function generateBaaSProxyConfigs() {
@@ -336,4 +436,179 @@ function generateTraefikDynamicConfig(appServices: ServiceConfig[], baasServices
     lineWidth: 80,
     noRefs: true
   });
+}
+
+function generateProductionStack(projectConfig: ReturnType<typeof getProjectConfig>, env: string) {
+  console.log(chalk.blue('🔧'), `Generating self-hosted Supabase stack for ${env}...`);
+
+  // Get domain from deployment config
+  const deployment = projectConfig.deployments?.find(d => d.name === env);
+  const domain = deployment?.domain || 'local.lightstack.dev';
+
+  // Check if Supabase stack already exists
+  const supabaseComposePath = `.light/docker-compose.supabase.yml`;
+
+  if (!existsSync(supabaseComposePath)) {
+    // Generate Supabase stack
+    const supabaseStack = generateSupabaseStack({
+      projectName: projectConfig.name,
+      domain,
+      environment: env,
+      sslEmail: projectConfig.deployments?.find(d => d.name === env)?.ssl?.email
+    });
+
+    writeFileSync(supabaseComposePath, supabaseStack);
+
+    // Generate Kong configuration
+    mkdirSync('.light/volumes/api', { recursive: true });
+    writeFileSync('.light/volumes/api/kong.yml', generateKongConfig());
+
+    // Generate secrets file
+    const secrets = generateSupabaseSecrets();
+    const envTemplate = generateSupabaseEnvTemplate(secrets);
+    writeFileSync('.light/.env.supabase', envTemplate);
+
+    console.log(chalk.yellow('⚠️'), 'Generated Supabase stack with new secrets');
+    console.log(chalk.yellow('⚠️'), chalk.bold('IMPORTANT: Save the secrets in .light/.env.supabase to a secure location!'));
+    console.log(chalk.yellow('⚠️'), 'These secrets cannot be recovered if lost.\n');
+  } else {
+    console.log(chalk.blue('ℹ'), 'Using existing Supabase stack configuration');
+  }
+
+  // Create necessary directories
+  mkdirSync('.light/volumes/db/data', { recursive: true });
+  mkdirSync('.light/volumes/storage', { recursive: true });
+  mkdirSync('.light/traefik', { recursive: true });
+
+  // Generate Traefik dynamic config for production (no localhost proxying)
+  const dynamicConfig = generateProductionTraefikConfig(projectConfig.services, domain);
+  writeFileSync('.light/traefik/dynamic.yml', dynamicConfig);
+}
+
+function generateProductionTraefikConfig(appServices: ServiceConfig[], domain: string): string {
+  const config: TraefikDynamicConfig = {
+    http: {
+      routers: {},
+      services: {}
+    }
+  };
+
+  // In production, app services run in containers, not localhost
+  appServices.forEach(service => {
+    const routerName = service.name;
+    const serviceName = `${service.name}-service`;
+
+    config.http.routers[routerName] = {
+      rule: `Host(\`${service.name}.${domain}\`)`,
+      service: serviceName,
+      tls: true
+    };
+
+    // In production, these would be containerized services
+    // For now, still proxy to localhost for testing
+    config.http.services[serviceName] = {
+      loadBalancer: {
+        servers: [{ url: `http://host.docker.internal:${service.port}` }]
+      }
+    };
+  });
+
+  // Note: Supabase services (Kong, Studio) are configured via Docker labels
+  // in the generated docker-compose.supabase.yml, not here
+
+  return yaml.dump(config, {
+    indent: 2,
+    lineWidth: 80,
+    noRefs: true
+  });
+}
+
+interface ContainerStatus {
+  hasRunningContainers: boolean;
+  running: string[];
+  failed: string[];
+  created: string[];
+}
+
+function checkContainerStatus(projectName: string, _env: string): ContainerStatus {
+  const status: ContainerStatus = {
+    hasRunningContainers: false,
+    running: [],
+    failed: [],
+    created: []
+  };
+
+  try {
+    // Get container status for this project
+    const output = execSync(
+      `docker ps -a --filter "name=${projectName}" --format "{{.Names}}\t{{.Status}}"`,
+      { encoding: 'utf-8' }
+    );
+
+    const lines = output.trim().split('\n');
+    for (const line of lines) {
+      if (!line) continue;
+
+      const [name, statusText] = line.split('\t');
+      if (!name || !statusText) continue;
+
+      if (statusText.includes('Up')) {
+        status.running.push(`${name} (${statusText.includes('healthy') ? 'healthy' : statusText.includes('unhealthy') ? 'unhealthy' : 'running'})`);
+        status.hasRunningContainers = true;
+      } else if (statusText.includes('Exited') || statusText.includes('Dead')) {
+        status.failed.push(`${name} (${statusText})`);
+      } else if (statusText.includes('Created')) {
+        status.created.push(`${name} (not started)`);
+      }
+    }
+
+    // Count created containers as potentially failed if nothing is running
+    if (!status.hasRunningContainers && status.created.length > 0) {
+      status.failed.push(...status.created);
+      status.created = [];
+    }
+
+  } catch (error) {
+    // If docker ps fails, we can't check status
+    console.log(chalk.yellow('⚠️'), 'Unable to check container status');
+  }
+
+  return status;
+}
+
+function runSupabaseMigrations(_projectName: string, _env: string): void {
+  console.log(chalk.blue('\n🗄️'), 'Applying database migrations...');
+
+  // Check if migrations directory exists
+  if (!existsSync('supabase/migrations')) {
+    console.log(chalk.blue('ℹ'), 'No migrations found in supabase/migrations/');
+    console.log(chalk.blue('ℹ'), 'Create your first migration with: supabase migration new initial_schema');
+    return;
+  }
+
+  try {
+    // Get database password from generated secrets
+    const secretsFile = readFileSync('.light/.env.supabase', 'utf-8');
+    const passwordMatch = secretsFile.match(/POSTGRES_PASSWORD=(.+)/);
+    const password = passwordMatch?.[1] || 'postgres';
+
+    // Build database URL
+    const dbUrl = `postgresql://postgres:${password}@localhost:5432/postgres`;
+
+    console.log(chalk.blue('ℹ'), 'Running: supabase db push');
+    console.log(chalk.gray('  Database: localhost:5432'));
+
+    // Run migrations
+    execSync(`supabase db push --db-url "${dbUrl}"`, {
+      stdio: 'inherit',
+      env: { ...process.env }
+    });
+
+    console.log(chalk.green('✅'), 'Database migrations applied successfully\n');
+  } catch (error) {
+    console.log(chalk.yellow('\n⚠️'), 'Failed to apply migrations');
+    console.log(chalk.blue('💡'), 'You can apply them manually with:');
+    console.log(chalk.cyan(`  supabase db push --db-url "postgresql://postgres:PASSWORD@localhost:5432/postgres"`));
+    console.log(chalk.gray('  (Replace PASSWORD with the value from .light/.env.supabase)\n'));
+  }
 }

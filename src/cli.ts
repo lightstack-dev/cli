@@ -54,11 +54,11 @@ program
 
 program
   .command('up')
-  .description('Start local proxy for development')
-  .option('--env <name>', 'Environment to use', 'development')
+  .description('Start local development or production stack')
+  .argument('[environment]', 'Target environment (development, production, etc.)', 'development')
   .option('--detach', 'Run in background', true)
-  .action(async (options: unknown) => {
-    await upCommand(options as { env?: string; detach?: boolean });
+  .action(async (environment: string, options: unknown) => {
+    await upCommand({ env: environment, ...(options as { detach?: boolean }) });
   });
 
 program
