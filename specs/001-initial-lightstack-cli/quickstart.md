@@ -5,8 +5,9 @@
 ## Prerequisites
 
 Before starting, ensure you have:
-- Docker Desktop installed and running (for the proxy container)
+- Docker Desktop installed and running (for the Supabase containers)
 - Node.js 20+ installed
+- [Supabase CLI](https://supabase.com/docs/guides/cli) installed (required)
 - [mkcert](https://github.com/FiloSottile/mkcert) installed (optional, for HTTPS)
 - An existing web project (React, Vue, Nuxt, Next.js, etc.)
 
@@ -56,7 +57,7 @@ light up
 - Generates SSL certificates via mkcert
 - Sets up routing to localhost services
 
-**Option B: Self-Hosted Supabase Mode** (complete BaaS stack):
+**Option B: Self-Hosted Supabase Mode** (complete stack - RECOMMENDED):
 ```bash
 # First time: Initialize Supabase project
 supabase init
@@ -71,6 +72,8 @@ light up
 - Deploys: PostgreSQL, Auth, API, Storage, Studio, Realtime
 - Applies database migrations automatically
 - Generates secure secrets
+
+**Note**: This is the primary use case for Lightstack - deploying your own Supabase instance
 
 **Expected output**:
 ```
@@ -241,7 +244,7 @@ After completing this quickstart, you should have:
 
 ## What Lightstack Does
 
-**Complete self-hosted BaaS deployment platform:**
+**Complete self-hosted Supabase deployment platform:**
 - ✅ Production-grade local development (HTTPS, reverse proxy, service routing)
 - ✅ Self-hosted Supabase deployment (PostgreSQL, Auth, API, Storage, Studio)
 - ✅ Automatic database migrations (integrates Supabase CLI)
@@ -249,13 +252,15 @@ After completing this quickstart, you should have:
 - ✅ Identical infrastructure patterns from dev to production
 - ✅ Dev/prod parity (same containers, same SSL, same routing)
 - ✅ Infrastructure as code (readable Docker Compose configurations)
+- ✅ Cost savings ($25-$2900/month hosted Supabase → $20-200/month self-hosted)
 
 ## What Lightstack Does NOT Do
 
-**Focused scope - infrastructure orchestration only:**
+**Focused scope - Supabase infrastructure orchestration only:**
 - ❌ Replace your dev server (`npm run dev` stays the same)
 - ❌ Replace Supabase CLI for migrations (we integrate it, not wrap it)
 - ❌ Replace your deployment platform (works with any Docker-compatible server)
+- ❌ Support other BaaS platforms yet (Supabase-only for now - YAGNI)
 - ❌ Replace complex container orchestration (use Kubernetes for that)
 
 ## Getting Help

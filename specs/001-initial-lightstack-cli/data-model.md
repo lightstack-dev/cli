@@ -155,12 +155,12 @@ Lightstack CLI generates Docker Compose files based on the project configuration
 - **Environment overlays**: Environment-specific overrides
 - **Traefik routing**: Via file provider for SSL proxy configuration
 
-### Complete Self-Hosted BaaS Stack (Optional)
-When BaaS services are detected (e.g., Supabase), Lightstack deploys the complete self-hosted stack:
+### Complete Self-Hosted Supabase Stack (Required)
+When Supabase projects are detected, Lightstack deploys the complete self-hosted stack:
 
 **Detection Strategy**:
-- Check for `supabase/config.toml` → Self-hosted Supabase stack enabled
-- Future: Check for other BaaS config files (PocketBase, Appwrite)
+- Check for `supabase/` directory → Self-hosted Supabase stack enabled
+- Currently Supabase-only (other BaaS platforms may be added later if needed - YAGNI)
 
 **Complete Supabase Stack Deployment**:
 - **PostgreSQL Database** with persistent volumes and proper backup procedures
@@ -240,10 +240,10 @@ light migrate --from=1.0 --to=1.1  # Execute specific migration
 
 ### Data Migration Path
 ```bash
-# Hosted to Self-Hosted Migration
-pg_dump hosted_db_url > backup.sql
+# Hosted Supabase to Self-Hosted Supabase Migration
+pg_dump hosted_supabase_db_url > backup.sql
 light up --env production
-psql self_hosted_db_url < backup.sql
+psql self_hosted_supabase_db_url < backup.sql
 ```
 
 ### Volume Management

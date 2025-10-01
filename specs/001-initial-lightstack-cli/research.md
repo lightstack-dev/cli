@@ -183,43 +183,49 @@ async function selfUpdate() {
 }
 ```
 
-## 6. BaaS Integration Strategy
+## 6. Supabase Integration Strategy
 
-**Decision**: Proxy integration for dev/prod parity, no command passthrough
+**Decision**: Complete self-hosted Supabase stack deployment, no command passthrough
 **Rationale**:
-- Single Responsibility Principle: CLI orchestrates proxying, doesn't manage BaaS config
+- Single Responsibility Principle: CLI orchestrates Supabase deployment, doesn't wrap Supabase CLI
 - Dev/prod parity: Same SSL domains locally and in production
 - Better UX: Subdomains instead of port numbers
-- Clear separation: BaaS CLIs manage services, Lightstack provides SSL proxy layer
+- Clear separation: Supabase CLI manages migrations/config, Lightstack deploys the complete stack
+- Supabase-only for now: Other BaaS platforms may be added later if demand exists (YAGNI)
 
 **Developer Workflow**:
 ```bash
-# 1. Initialize project structure (no BaaS needed yet)
-light init my-app           # Create basic project scaffolding
-
-# 2. BaaS setup (user responsibility, when needed)
+# 1. Initialize Supabase project (required)
 supabase init              # Initialize Supabase project
-supabase start              # Start local Supabase services
 
-# 3. Start development (auto-detects and configures proxies)
-light up                    # Detects BaaS, generates proxy configs, starts environment
+# 2. Initialize Lightstack infrastructure
+light init my-app          # Create Lightstack configuration
+
+# 3. Start development (auto-detects Supabase and deploys complete stack)
+light up                   # Detects supabase/, deploys complete self-hosted stack
 ```
 
-**Proxy Implementation**:
-- **Detection**: Check for `supabase/config.toml` during `light up` (just-in-time)
+**Supabase Stack Deployment**:
+- **Detection**: Check for `supabase/` directory during `light up`
+- **Development Mode**: Proxy to `supabase start` when available
+- **Production Mode**: Deploy complete self-hosted Supabase Docker stack
 - **Configuration**: Generate Traefik file provider configs (not container labels)
-- **Routing**: Map SSL domains to localhost ports via `host.docker.internal`
-- **Always Current**: Proxy configs generated fresh each time based on current BaaS state
+- **Routing**: Map SSL domains to Supabase services
 
 **URL Mapping** (when Supabase detected):
 ```
-https://api.lvh.me      → http://localhost:54321  (Supabase API)
-https://db.lvh.me       → http://localhost:54323  (Supabase Studio)
-https://storage.lvh.me  → http://localhost:54324  (Supabase Storage)
+Development:
+https://api.lvh.me      → Supabase API (self-hosted)
+https://studio.lvh.me   → Supabase Studio (self-hosted)
 https://app.lvh.me      → Your application
+
+Production:
+https://api.yourdomain.com    → Supabase API (self-hosted)
+https://studio.yourdomain.com → Supabase Studio (self-hosted)
+https://yourdomain.com        → Your application
 ```
 
-**Command Boundaries**: Lightstack CLI only accepts defined commands (init, up, down, deploy, status, logs)
+**Command Boundaries**: Lightstack CLI only accepts defined commands (init, up, down, deploy, status, logs, env). For Supabase-specific operations (migrations, db push), use Supabase CLI directly.
 
 ## 7. CI/CD File Generation
 

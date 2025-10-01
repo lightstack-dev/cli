@@ -25,11 +25,11 @@ export function downCommand(options: DownOptions = {}) {
 
     console.log(chalk.blue('🛑'), 'Stopping local proxy...');
 
-    // Build Docker Compose command with project name
+    // Simple approach: Just use project name to stop all containers
+    // Docker Compose doesn't need the exact compose files to stop containers
     const projectArg = `--project-name ${projectConfig.name}`;
-    const envFileArg = existsSync('.env') ? '--env-file ./.env' : '';
     const volumesFlag = removeVolumes ? '-v' : '';
-    const dockerCmd = `docker compose ${projectArg} -f .light/docker-compose.yml -f .light/docker-compose.dev.yml ${envFileArg} down ${volumesFlag}`.trim();
+    const dockerCmd = `docker compose ${projectArg} down ${volumesFlag}`.trim();
 
     // Execute Docker Compose
     execSync(dockerCmd, { stdio: 'inherit' });

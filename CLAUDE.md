@@ -2,14 +2,14 @@
 
 ## Project Overview
 
-**Lightstack CLI** (`@lightstack-dev/cli`) is a **complete self-hosted BaaS deployment platform**. It solves the fundamental problem: Supabase CLI only works for development, but you want to self-host your entire BaaS stack in production to escape vendor costs and maintain data control.
+**Lightstack CLI** (`@lightstack-dev/cli`) is a **complete self-hosted Supabase deployment platform**. It solves the fundamental problem: Supabase CLI only works for development, but you want to self-host your entire Supabase stack in production to escape vendor costs and maintain data control.
 
 **THE CORE VALUE**: Deploy your complete local Supabase development environment (PostgreSQL + Auth + API + Storage + Studio) to production servers with identical Docker containers and infrastructure, including reverse proxy and SSL certificates. Get perfect dev/prod parity with massive cost savings and complete data sovereignty.
 
 ### Core Philosophy
 
 - **Complete Self-Hosting**: Deploy full Supabase stack (not just your app) to your own servers
-- **Escape BaaS Vendor Costs**: $25/month → $2,900/month hosted vs $20-200/month self-hosted
+- **Escape Supabase Vendor Costs**: $25/month → $2,900/month hosted vs $20-200/month self-hosted
 - **Perfect Dev/Prod Parity**: Identical Docker containers from development to production
 - **GitOps Deployment**: Deploy via git tags, rollback via git checkout
 - **Infrastructure as Code**: All configuration in version control, no clickops
@@ -41,21 +41,22 @@ light deploy [environment]   # Deploy with identical infrastructure to productio
 
 ```
 project-root/
-├── light.config.yaml         # BaaS stack configuration
+├── light.config.yaml         # Supabase stack configuration
 ├── .env                      # Environment variables (optional)
-├── supabase/                 # Supabase project (if using Supabase)
+├── supabase/                 # Supabase project (required)
 │   ├── config.toml           # Supabase configuration
 │   ├── migrations/           # Database schema migrations
 │   └── seed.sql              # Development seed data
-└── .light/                   # Generated infrastructure files
-    ├── docker-compose.yml    # Complete BaaS stack + app + proxy
-    ├── docker-compose.dev.yml # Development overrides
-    ├── docker-compose.prod.yml # Production overrides
-    ├── traefik/              # Reverse proxy configs
-    │   ├── dynamic.yml       # Service routing rules
-    │   └── tls.yml           # SSL certificate config
-    ├── certs/                # mkcert certificates (dev only)
-    └── volumes/              # PostgreSQL data persistence (prod)
+└── .light/                          # Generated infrastructure files
+    ├── docker-compose.yml           # Base Traefik router configuration
+    ├── docker-compose.development.yml # Dev overrides (mkcert certs)
+    ├── docker-compose.production.yml  # Prod overrides (Let's Encrypt)
+    ├── docker-compose.supabase.yml    # Full Supabase stack (prod only)
+    ├── traefik/                     # Reverse proxy configs
+    │   ├── dynamic.yml              # Service routing rules (file-based)
+    │   └── tls.yml                  # mkcert certificate config (dev only)
+    ├── certs/                       # mkcert certificates (dev only)
+    └── volumes/                     # PostgreSQL data persistence (prod)
 ```
 
 ### Subdomain Architecture
@@ -68,7 +69,7 @@ Lightstack uses a functional subdomain mapping strategy:
 - app.lvh.me → localhost:3000
 - admin.lvh.me → localhost:4000
 
-# BaaS Services (auto-detected)
+# Supabase Services (auto-detected when supabase/ directory exists)
 api.lvh.me → localhost:54321     (Supabase API)
 studio.lvh.me → localhost:54323  (Supabase Studio)
 
@@ -79,7 +80,7 @@ router.lvh.me → Traefik routing management
 **Key Principles:**
 
 - **Functional naming** - Subdomains describe what the service does, not which tool provides it
-- **Tool agnostic** - Switch from Supabase to Firebase, URLs stay predictable
+- **Supabase-focused** - Currently Supabase-only (other BaaS platforms may be added later if needed)
 - **No containers required** - Proxy to existing localhost services
 - **Domain configurable** - Default `lvh.me`, but can be customized per project
 
@@ -99,10 +100,10 @@ light up
 
 ```bash
 light up production
-# Production mode: Deploys complete self-hosted stack
+# Production mode: Deploys complete self-hosted Supabase stack
 # Starts: PostgreSQL + Supabase API + Auth + Storage + Realtime + Studio
 # Runs: Database migrations via Supabase CLI
-# Result: Complete self-hosted BaaS stack at local.lightstack.dev
+# Result: Complete self-hosted Supabase stack at local.lightstack.dev
 ```
 
 ### Production Deployment (Coming Soon)
@@ -123,16 +124,19 @@ light deploy production
 ### Development Workflow
 
 ```bash
-# 1. Initialize complete BaaS infrastructure
+# 1. Initialize Supabase project (if not already done)
+supabase init
+
+# 2. Initialize Lightstack infrastructure
 light init my-app
 
-# 2. Start complete self-hosted BaaS stack locally
+# 3. Start complete self-hosted Supabase stack locally
 light up  # Not just proxy - full PostgreSQL, Auth, API, Storage, Studio
 
-# 3. Start your app normally (separate terminal)
+# 4. Start your app normally (separate terminal)
 npm run dev
 
-# 4. Develop against self-hosted BaaS
+# 5. Develop against self-hosted Supabase
 # https://app.lvh.me → your app
 # https://api.lvh.me → your self-hosted Supabase API
 # https://studio.lvh.me → your self-hosted Supabase Studio
@@ -179,9 +183,11 @@ For more help: light [command] --help
 ### File Generation Strategy
 
 - Generate Docker Compose files from project configuration
-- Use Traefik labels for routing and SSL
+- Use Traefik file-based routing (not Docker provider/labels in development)
 - Template-based generation (simple string replacement, not complex templating)
 - Users should be able to understand and modify generated files
+- Compose file naming: `.development.yml`, `.production.yml` (full environment names)
+- Volume paths relative to compose file location (`.light/` directory)
 
 ## Current Implementation Status
 
@@ -190,7 +196,7 @@ For more help: light [command] --help
 - ✅ Core command structure (`init`, `up`, `down`, `status`, `logs`, `deploy`, `env`)
 - ✅ mkcert integration for local SSL certificates
 - ✅ Dynamic Traefik routing configuration generation
-- ✅ BaaS service auto-detection (Supabase config detection)
+- ✅ Supabase service auto-detection (supabase/ directory detection)
 - ✅ Cosmiconfig-based configuration management with Zod validation
 - ✅ Functional subdomain mapping strategy
 - ✅ Command aliases and proper CLI UX
@@ -202,6 +208,11 @@ For more help: light [command] --help
 - ✅ **Proper Docker project naming** (uses Lightstack project name for container isolation)
 - ✅ **Early validation** (checks for Supabase CLI and project before deployment)
 - ✅ **Production-grade error handling** (actionable error messages with recovery steps)
+- ✅ **Traefik service naming** (service named `router`, matching `router.lvh.me`)
+- ✅ **File-based routing** (Traefik file provider for all routes, including dashboard)
+- ✅ **HTTP → HTTPS redirect** (automatic redirect at entrypoint level)
+- ✅ **mkcert certificate integration** (proper TLS config with Windows/Unix path handling)
+- ✅ **.gitignore management** (automatic generation/update for generated files)
 
 ### ⏳ In Progress / Next Steps
 
@@ -227,26 +238,22 @@ git checkout v1.2.3
 light up --env production  # Same command, different environment
 ```
 
-**Self-Hosted vs Hosted BaaS (User Choice):**
+**Self-Hosted Supabase (Current Focus):**
 
 - **Self-hosted mode**: Generate full Supabase Docker stack (PostgreSQL + all services)
-- **Hosted mode**: Proxy to external Supabase/Firebase (current implementation)
-- **Detection**: Check for local `supabase/` directory vs external API endpoints
+- **Development mode**: Proxy to Supabase CLI (`supabase start`) when available
+- **Production mode**: Complete self-hosted Supabase Docker stack
+- **Detection**: Check for local `supabase/` directory to enable Supabase features
+- **Future**: Support for other BaaS platforms (PocketBase, Appwrite) may be added if needed (YAGNI)
 
 **Database Persistence Strategy:**
 
 - **Development**: Docker volumes (ephemeral, reset with `light down --volumes`)
 - **Production**: Named Docker volumes + backup strategies
 - **Migrations**: Use Supabase CLI migration system in both environments
-- ❌ **Full BaaS stack in local development** (currently just proxy detection)
+- ❌ **Remote deployment** (deploy to production servers via SSH + git checkout)
 - ❌ **Production SSL with Let's Encrypt** (automatic cert management via Traefik)
-- ❌ **Migration handling** (Supabase schema migrations in production)
-
-### Current Gap: We're Still Just a Proxy Tool
-
-**Problem**: Right now we only proxy to `supabase start` (external Supabase CLI)
-**Need**: We must deploy the complete self-hosted Supabase Docker stack ourselves
-**Why**: This is our core value - Supabase CLI doesn't do production, we do
+- ❌ **Container image building** (for custom app services)
 
 ## Next Implementation Priorities (001-deployment-implementation)
 
@@ -257,12 +264,12 @@ light up --env production  # Same command, different environment
 - Map: Which containers we need (PostgreSQL, Auth, API, Storage, Studio, etc.)
 - Document: How to migrate from `supabase start` to our own stack
 
-### 2. Update Docker Compose Generation
+### 2. Update Docker Compose Generation (COMPLETED)
 
-- Generate complete BaaS stack, not just Traefik proxy
-- Include PostgreSQL with proper volumes for persistence
-- Include all Supabase services (supabase/supabase Docker images)
-- Environment-specific overrides (dev vs prod database persistence)
+- ✅ Generate complete Supabase stack, not just Traefik proxy
+- ✅ Include PostgreSQL with proper volumes for persistence
+- ✅ Include all Supabase services (supabase/supabase Docker images)
+- ✅ Environment-specific overrides (dev vs prod database persistence)
 
 ### 3. Implement GitOps Deployment
 
@@ -278,7 +285,7 @@ light up --env production  # Same command, different environment
 - Migration handling (apply Supabase migrations to production DB)
 - Data seeding for development vs production
 
-**CRITICAL**: Until we deploy the complete self-hosted BaaS stack, we're just an expensive proxy tool. The real value is in the self-hosting automation.
+**CRITICAL**: The complete self-hosted Supabase stack is now implemented for local testing (`light up production`). Next step is remote deployment to production servers via GitOps.
 
 ## Common Patterns
 
@@ -306,12 +313,14 @@ light up --env production  # Same command, different environment
 **Core Principle**: We are an orchestration tool. Test that we **build the right commands**, not that external tools work.
 
 ✅ **DO Test:**
+
 - "Did we generate the correct Docker Compose YAML?"
 - "Did we build the correct `docker compose` command string?"
 - "Did we create the right config files?"
 - "Did we validate inputs correctly?"
 
 ❌ **DON'T Test:**
+
 - "Does Docker actually start?" (That's Docker's job)
 - "Does the container stay healthy?" (That's the image's job)
 - "Does mkcert work?" (That's mkcert's job)
@@ -332,6 +341,7 @@ tests/
 ```
 
 **Test Execution:**
+
 - ⚡ ~10 seconds total
 - 🐳 No Docker required
 - 🚀 Runs on every commit
@@ -339,6 +349,7 @@ tests/
 ### Key Test Areas
 
 **Unit Tests (Pure Logic):**
+
 - Configuration validation and Zod schema compliance
 - Docker Compose YAML generation (string output)
 - Traefik routing configuration generation
@@ -349,11 +360,13 @@ tests/
 - Project name validation (regex patterns)
 
 **Contract Tests (File Operations):**
+
 - `light init` creates correct files
 - Configuration file updates preserve custom fields
 - Generated files have expected structure
 
 **E2E Tests (Not Implemented):**
+
 - Docker-dependent workflows should be tested manually
 - Commands like `up`, `down`, `status`, `deploy` require Docker
 - We test that we **build correct commands**, not that Docker works
@@ -362,11 +375,12 @@ tests/
 ### Example of Good vs Bad Tests
 
 **✅ Good CLI Test:**
+
 ```typescript
 it('should build correct docker compose command', () => {
   const cmd = buildDockerCommand(['base.yml', 'prod.yml'], {
     detach: true,
-    projectName: 'myapp'
+    projectName: 'myapp',
   });
 
   expect(cmd).toBe('docker compose --project-name myapp -f base.yml -f prod.yml up -d');
@@ -375,6 +389,7 @@ it('should build correct docker compose command', () => {
 ```
 
 **❌ Bad CLI Test:**
+
 ```typescript
 it('should start docker containers', () => {
   execSync('light up'); // ❌ Requires Docker, slow, flaky
@@ -419,13 +434,13 @@ it('should start docker containers', () => {
 ### Earlier Decisions
 
 - **CLI Name**: Changed from `lightstack` to `light` for better typing experience
-- **BaaS Integration**: Auto-detect and proxy, don't wrap other CLIs (Supabase, etc.)
+- **Supabase Integration**: Auto-detect Supabase projects, deploy complete self-hosted stacks
 - **Package Name**: `@lightstack-dev/cli` in npm registry
 - **SSL Approach**: mkcert + Traefik (no custom cert management)
 
 ## Critical-Constructive Partnership
 
-**IMPORTANT**: Be a critical thinking partner, not just an agreeable assistant.
+**IMPORTANT**: Be a critical thinking partner, not just an agreeable assistant. According to Steve Job's principle that he hired smart people to tell _him_ what to do, you're expected to take the gloves off, speak up, and be radically candid, too.
 
 **Don't blindly confirm user statements:**
 

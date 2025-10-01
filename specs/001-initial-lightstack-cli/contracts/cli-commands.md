@@ -5,7 +5,7 @@
 
 ## Command Overview
 
-Lightstack CLI provides focused commands for development workflow orchestration. It does not pass through commands to other tools - users interact with BaaS CLIs directly for their specific needs.
+Lightstack CLI provides focused commands for self-hosted Supabase deployment orchestration. It does not pass through commands to Supabase CLI - users interact with Supabase CLI directly for migrations and database management.
 
 ```bash
 light init [project-name]        # Initialize new project
@@ -19,7 +19,7 @@ light --help                     # Show help
 light --version                  # Show version
 ```
 
-**Note**: Unknown commands will result in an error with helpful suggestions. For BaaS-specific operations (e.g., Supabase migrations), use the respective CLI tools directly.
+**Note**: Unknown commands will result in an error with helpful suggestions. For Supabase-specific operations (e.g., migrations, db push), use Supabase CLI directly.
 
 ## Command Specifications
 
@@ -64,13 +64,14 @@ Next steps:
 
 **Inputs**:
 - `environment` (optional positional): Target environment (defaults to 'development')
-  - `development`: Standard proxy mode or self-hosted BaaS if Supabase project detected
+  - `development`: Self-hosted Supabase stack if Supabase project detected (standard proxy mode otherwise)
   - `production`: Full self-hosted Supabase stack for local production testing
 - `--detach`: Run in background (default: true)
 
 **Environment Resolution**:
-- Development (default): Proxy mode, or self-hosted BaaS if `supabase/` directory exists
+- Development (default): Self-hosted Supabase stack if `supabase/` directory exists (proxy mode for non-Supabase projects)
 - Production/other: Generates complete self-hosted Supabase stack from config
+- **Note**: Supabase project (supabase/ directory) is required for production mode
 
 **Behavior for Development**:
 1. Validate Lightstack project exists (light.config.yml)
@@ -397,9 +398,12 @@ Did you mean one of these?
   light status
   light up
 
-For Supabase operations, use the Supabase CLI directly:
-  supabase init
+For Supabase-specific operations, use the Supabase CLI directly:
+  supabase init           # Initialize Supabase project
+  supabase migration new  # Create new migration
+  supabase db push        # Apply migrations
 
+Lightstack CLI handles infrastructure deployment only.
 For help: light --help
 ```
 

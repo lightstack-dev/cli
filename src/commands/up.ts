@@ -384,6 +384,13 @@ function generateTraefikDynamicConfig(appServices: ServiceConfig[], baasServices
     }
   };
 
+  // Add Traefik dashboard route
+  config.http.routers['traefik-dashboard'] = {
+    rule: 'Host(`router.lvh.me`)',
+    service: 'api@internal',
+    tls: true
+  };
+
   // Add routes for app services (proxying to localhost)
   appServices.forEach(service => {
     const routerName = service.name;

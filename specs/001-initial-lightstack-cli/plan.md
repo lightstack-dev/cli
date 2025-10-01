@@ -30,7 +30,7 @@
 - Phase 3-4: Implementation execution (manual or via tools)
 
 ## Summary
-Building a unified CLI tool that orchestrates development workflow from local development through production deployment for BaaS platforms, focusing initially on Nuxt/Supabase stack with Docker-based deployment.
+Building a unified CLI tool that orchestrates self-hosted Supabase deployment from local development through production deployment, focusing on Nuxt/Supabase stack with Docker-based deployment. Currently Supabase-only (other BaaS platforms may be added later if needed - YAGNI).
 
 ## Technical Context
 **Language/Version**: TypeScript/Node.js 20+ (standard for modern CLI tools)
@@ -42,7 +42,8 @@ Building a unified CLI tool that orchestrates development workflow from local de
 **Project Type**: single (CLI tool)
 **Performance Goals**: <2s response time for local operations, <30s for deployment operations
 **Constraints**: Must work in CI environments, respect NO_COLOR, handle network failures gracefully
-**Scale/Scope**: Supporting early-stage apps (first thousands of users)
+**Scale/Scope**: Supporting early-stage Supabase apps (first thousands of users)
+**BaaS Platform**: Supabase (required) - other platforms may be added if demand exists (YAGNI)
 
 ## Constitution Check
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*

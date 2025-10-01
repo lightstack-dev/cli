@@ -1,4 +1,4 @@
-import { writeFileSync, existsSync, mkdirSync } from 'fs';
+import { writeFileSync, existsSync, mkdirSync, readFileSync, appendFileSync } from 'fs';
 import { basename } from 'path';
 import chalk from 'chalk';
 import yaml from 'js-yaml';
@@ -50,6 +50,9 @@ export function initCommand(projectName?: string, options: InitOptions = {}) {
     // Create basic Docker Compose files
     createDockerComposeFiles(project);
 
+    // Update .gitignore
+    updateGitignore();
+
     // Success message
     console.log(chalk.green('✅'), `Project '${name}' initialized`);
     console.log(chalk.green('✅'), 'Proxy configuration created');
@@ -82,15 +85,18 @@ function isValidProjectName(name: string): boolean {
 function createDockerComposeFiles(project: ProjectConfig) {
   // Base docker-compose.yml - Only Traefik, no app containers
   const baseCompose = `services:
-  traefik:
+  router:
     image: traefik:v3.5
-    container_name: \${PROJECT_NAME:-${project.name}}-proxy
+    container_name: \${PROJECT_NAME:-${project.name}}-router
     command:
       - --api.dashboard=true
       - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.filename=/etc/traefik/dynamic/tls.yml
       - --providers.file.watch=true
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
     ports:
       - "80:80"
       - "443:443"
@@ -98,7 +104,7 @@ function createDockerComposeFiles(project: ProjectConfig) {
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./.light/traefik:/etc/traefik/dynamic:ro
+      - ./traefik:/etc/traefik/dynamic:ro
     networks:
       - lightstack
 
@@ -109,39 +115,65 @@ networks:
 
   writeFileSync('.light/docker-compose.yml', baseCompose);
 
-  // Development override
+  // Development override (docker-compose.development.yml)
   const devCompose = `services:
-  traefik:
+  router:
     volumes:
-      - ./.light/certs:/certs:ro
-      - ./.light/traefik:/etc/traefik/dynamic:ro
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.router.rule=Host(\`router.lvh.me\`)"
-      - "traefik.http.routers.router.tls=true"
-      - "traefik.http.routers.router.service=api@internal"
+      - ./traefik:/etc/traefik/dynamic:ro
+      - ./certs:/certs:ro
 `;
 
-  writeFileSync('.light/docker-compose.dev.yml', devCompose);
+  writeFileSync('.light/docker-compose.development.yml', devCompose);
 
-  // Production override
+  // Production override (docker-compose.production.yml)
   const prodCompose = `services:
-  traefik:
+  router:
     command:
       - --api.dashboard=false
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
-      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
-      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=\${DNS_PROVIDER}
       - --certificatesresolvers.letsencrypt.acme.email=\${ACME_EMAIL}
       - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+    environment:
+      - DNS_PROVIDER=\${DNS_PROVIDER}
 
   ${project.services[0]?.name || 'app'}:
     restart: unless-stopped
 `;
 
-  writeFileSync('.light/docker-compose.prod.yml', prodCompose);
+  writeFileSync('.light/docker-compose.production.yml', prodCompose);
+}
+
+function updateGitignore() {
+  const lightStackEntries = [
+    '',
+    '# Lightstack',
+    '.light/certs/',
+    '.light/traefik/',
+    '.env'
+  ];
+
+  if (existsSync('.gitignore')) {
+    // Read existing .gitignore
+    const content = readFileSync('.gitignore', 'utf-8');
+
+    // Check if Lightstack section already exists
+    if (content.includes('# Lightstack')) {
+      return; // Already configured
+    }
+
+    // Append Lightstack entries
+    appendFileSync('.gitignore', '\n' + lightStackEntries.join('\n') + '\n');
+  } else {
+    // Create new .gitignore
+    const gitignoreContent = lightStackEntries.join('\n') + '\n';
+    writeFileSync('.gitignore', gitignoreContent);
+  }
 }
 

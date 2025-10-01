@@ -264,11 +264,12 @@ Task: "Test network failure recovery in deployment in tests/integration/test_net
 ### Key Architectural Decisions Made:
 - **Configuration Format**: Switched from JSON to YAML for better readability and comments
 - **Environment Variables**: Single .env file approach (12-factor principles) - CLI doesn't generate .env files
-- **BaaS Integration**: Detection and proxy generation moved from init to up command for just-in-time configuration
+- **Supabase Integration**: Detection via supabase/ directory, complete self-hosted stack deployment
 - **Service Architecture**: Implemented inline in commands rather than separate service classes (YAGNI principle)
 - **Proxy Domain**: Using proxy.lvh.me (product-agnostic) instead of traefik.lvh.me
 - **Template Approach**: Removed --template option, focused on Nuxt-only implementation
 - **Package Manager**: Using Bun for development (10-100x faster than npm)
+- **BaaS Platform**: Supabase-only for now (other platforms may be added later if needed - YAGNI)
 
 ## Validation Checklist
 *GATE: Checked before execution*

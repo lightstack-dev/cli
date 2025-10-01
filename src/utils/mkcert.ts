@@ -171,16 +171,20 @@ export function setupMkcert(): MkcertResult {
  * Update Traefik configuration to use mkcert certificates
  */
 export function generateTraefikTlsConfig(certPath: string, keyPath: string): string {
+  // Extract just the filename, handling both Windows and Unix paths
+  const certFile = certPath.split(/[/\\]/).pop();
+  const keyFile = keyPath.split(/[/\\]/).pop();
+
   return `tls:
   certificates:
-    - certFile: /certs/${certPath.split('/').pop()}
-      keyFile: /certs/${keyPath.split('/').pop()}
+    - certFile: /certs/${certFile}
+      keyFile: /certs/${keyFile}
       stores:
         - default
   stores:
     default:
       defaultCertificate:
-        certFile: /certs/${certPath.split('/').pop()}
-        keyFile: /certs/${keyPath.split('/').pop()}
+        certFile: /certs/${certFile}
+        keyFile: /certs/${keyFile}
 `;
 }

@@ -54,14 +54,14 @@ When creating this spec from a user prompt:
 ## User Scenarios & Testing *(mandatory)*
 
 ### Primary User Story
-As a developer working with BaaS platforms, I need a CLI tool that enables me to self-host my entire BaaS stack (database, auth, API, storage) both locally and in production, escaping vendor lock-in and high costs while maintaining perfect dev/prod parity and complete data sovereignty.
+As a developer working with Supabase, I need a CLI tool that enables me to self-host my entire Supabase stack (database, auth, API, storage) both locally and in production, escaping Supabase's vendor pricing and high costs while maintaining perfect dev/prod parity and complete data sovereignty.
 
 ### Acceptance Scenarios
-1. **Given** a new project folder, **When** developer runs initialization command, **Then** the CLI creates configuration for self-hosted BaaS stack with production-grade SSL
-2. **Given** an initialized project, **When** developer runs development command, **Then** complete self-hosted BaaS stack starts (PostgreSQL, Auth, API, Storage, Studio) with HTTPS proxy
-3. **Given** a project with self-hosted BaaS, **When** developer deploys to production, **Then** identical BaaS stack deploys to remote server with Let's Encrypt SSL
-4. **Given** a production deployment, **When** deployment completes, **Then** all services accessible via HTTPS with automatic health checks and rollback capability
-5. **Given** a need to escape vendor costs, **When** developer switches from hosted to self-hosted, **Then** data migration and identical functionality preserved
+1. **Given** a new project folder with Supabase initialized, **When** developer runs initialization command, **Then** the CLI creates configuration for self-hosted Supabase stack with production-grade SSL
+2. **Given** an initialized Lightstack project, **When** developer runs development command, **Then** complete self-hosted Supabase stack starts (PostgreSQL, Auth, API, Storage, Studio) with HTTPS proxy
+3. **Given** a project with self-hosted Supabase, **When** developer deploys to production, **Then** identical Supabase stack deploys to remote server with Let's Encrypt SSL
+4. **Given** a production deployment, **When** deployment completes, **Then** all Supabase services accessible via HTTPS with automatic health checks and rollback capability
+5. **Given** a need to escape Supabase vendor costs, **When** developer switches from hosted Supabase to self-hosted, **Then** data migration and identical functionality preserved
 
 ### Edge Cases
 - **Docker not available**: System shows clear error message with Docker installation instructions and exits gracefully
@@ -79,17 +79,17 @@ As a developer working with BaaS platforms, I need a CLI tool that enables me to
 
 ### Functional Requirements
 - **FR-001**: ✅ System MUST provide single command to start complete development environment
-- **FR-002**: ✅ System MUST support SSL/TLS in local development for production parity
-- **FR-003**: ✅ System MUST orchestrate multiple services (frontend, BaaS, database) in correct dependency order
-- **FR-004**: ⏳ System MUST deploy to any Docker-compatible VPS platform
-- **FR-005**: ✅ System MUST pass through all native BaaS CLI commands without modification
+- **FR-002**: ✅ System MUST support SSL/TLS in local development for production parity (mkcert integration)
+- **FR-003**: ✅ System MUST orchestrate multiple services (frontend, Supabase stack, database) in correct dependency order
+- **FR-004**: ⏳ System MUST deploy to any Docker-compatible VPS platform (local testing implemented)
+- **FR-005**: ✅ System MUST NOT wrap Supabase CLI - developers use Supabase CLI directly for migrations and management
 - **FR-006**: ✅ System MUST auto-detect and use smart defaults for common configurations (port numbers, service names, database connections)
 - **FR-007**: ✅ System MUST manage secrets securely between environments
 - **FR-008**: ⏳ System MUST provide zero-downtime deployments
 - **FR-009**: ✅ System MUST perform health checks after deployment
 - **FR-010**: ✅ System MUST support both global and per-project installation
 - **FR-011**: ✅ Users MUST be able to override default configurations
-- **FR-012**: ⏳ System MUST generate and manage SSL certificates via Let's Encrypt
+- **FR-012**: ✅ System MUST generate SSL certificates (mkcert for dev, Let's Encrypt config for prod)
 - **FR-013**: ✅ System MUST handle database migrations automatically during development
 - **FR-014**: ⏳ System MUST seed test data in development environments
 - **FR-015**: ✅ System MUST support multiple deployment targets (production, staging, etc.)
@@ -100,21 +100,22 @@ As a developer working with BaaS platforms, I need a CLI tool that enables me to
 - **FR-020**: ⏳ System MUST configure repository secrets and deployment tokens for CI/CD automation
 - **FR-021**: ⏳ Generated CI/CD workflows MUST trigger deployments automatically on configured events (push to main, pull request merge)
 
-### Self-Hosted BaaS Requirements *(core value proposition)*
-- **FR-022**: ✅ System MUST support optional self-hosted Supabase stack deployment (PostgreSQL, Auth, API, Storage, Studio)
-- **FR-023**: ✅ System MUST provide identical BaaS stack in development and production environments
-- **FR-024**: ✅ System MUST enable cost-effective alternative to hosted BaaS pricing
+### Self-Hosted Supabase Requirements *(core value proposition)*
+- **FR-022**: ✅ System MUST support self-hosted Supabase stack deployment (PostgreSQL, Auth, API, Storage, Studio) - Supabase is required, not optional
+- **FR-023**: ✅ System MUST provide identical Supabase stack in development and production environments
+- **FR-024**: ✅ System MUST enable cost-effective alternative to hosted Supabase pricing ($25-$2900/month hosted → $20-200/month self-hosted)
 - **FR-025**: ✅ System MUST preserve complete data sovereignty (user's servers, user's database)
-- **FR-026**: ⏳ System MUST support migration from hosted to self-hosted BaaS configurations
+- **FR-026**: ⏳ System MUST support migration from hosted Supabase to self-hosted Supabase
 - **FR-027**: ✅ System MUST handle PostgreSQL data persistence in production with backup strategies
 - **FR-028**: ✅ System MUST integrate Supabase CLI migration system for schema management
 - **FR-029**: ⏳ System MUST support GitOps deployment (deploy via git tags, not file transfer)
+- **FR-030**: System MAY support other BaaS platforms (PocketBase, Appwrite) in the future if demand exists (YAGNI principle)
 
 ### Key Entities *(include if feature involves data)*
 - **Project Configuration**: Represents project-specific settings including local development options, deployment targets, and service configurations
 - **Deployment Target**: Represents a destination environment with host information, domain configuration, and SSL settings
 - **Environment Variables**: Represents secrets and configuration values specific to each deployment environment
-- **Service**: Represents an orchestrated component (frontend, BaaS platform, database) with dependencies and startup requirements
+- **Service**: Represents an orchestrated component (frontend, Supabase services, database) with dependencies and startup requirements
 - **SSL Certificate**: Represents security credentials for HTTPS support in both development and production
 
 ### Non-Functional Requirements
