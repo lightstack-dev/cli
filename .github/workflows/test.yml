@@ -43,6 +43,9 @@ jobs:
     - name: Build project
       run: bun run build
 
-    - name: Run unit tests
-      run: bun run vitest run
+    - name: Run tests
+      run: bun test --run
+      # Note: Tests do NOT require Docker
+      # We test command generation, not Docker execution
+      # See CLAUDE.md for testing philosophy
 

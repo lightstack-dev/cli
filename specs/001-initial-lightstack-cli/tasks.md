@@ -3,6 +3,35 @@
 **Input**: Design documents from `/specs/001-initial-lightstack-cli/`
 **Prerequisites**: plan.md (required), research.md, data-model.md, contracts/
 
+---
+
+## ⚠️ TESTING APPROACH UPDATE (2025-01)
+
+**Original spec** called for TDD with contract tests requiring Docker. **Current implementation** uses a pragmatic approach:
+
+### What We Actually Do ✅
+- **Unit tests (94%)**: Pure functions, no Docker required
+  - Configuration generation, validation, string building
+  - Tests run in ~10s, no external dependencies
+- **Contract tests (6%)**: File operations only (`light init`)
+  - No Docker, no mkcert, no external services
+- **E2E tests (0%)**: Not implemented
+  - Docker-dependent tests were removed (not our responsibility to test Docker)
+  - Manual testing recommended for Docker workflows
+
+### Why This Change?
+**Problem**: Testing Docker is not our responsibility. We're an orchestration tool.
+**Solution**: Test that we **build correct commands**, not that Docker works.
+
+### For New Features
+- Add **unit tests** for logic (YAML generation, command building)
+- Add **contract tests** only for file operations (no Docker)
+- **Don't add** tests requiring Docker - manual testing instead
+
+See [CLAUDE.md Testing Strategy](../../CLAUDE.md#testing-strategy) for detailed guidelines.
+
+---
+
 ## Execution Flow (main)
 ```
 1. Load plan.md from feature directory

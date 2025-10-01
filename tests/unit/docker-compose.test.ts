@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import yaml from 'js-yaml';
 
-// Docker Compose generation logic extracted and simplified from init.ts
-interface Project {
+// Docker Compose generation logic matching current init.ts implementation
+interface ProjectConfig {
   name: string;
   services: Array<{
     name: string;
@@ -11,69 +11,49 @@ interface Project {
   }>;
 }
 
-function generateBaseDockerCompose(project: Project): string {
+function generateBaseDockerCompose(project: ProjectConfig): string {
   return `services:
   traefik:
-    image: traefik:v3.0
-    container_name: \${PROJECT_NAME:-${project.name}}-traefik
+    image: traefik:v3.5
+    container_name: \${PROJECT_NAME:-${project.name}}-proxy
     command:
       - --api.dashboard=true
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
     ports:
       - "80:80"
       - "443:443"
       - "8080:8080"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.proxy.rule=Host(\`proxy.lvh.me\`)"
-      - "traefik.http.routers.proxy.tls=true"
-      - "traefik.http.routers.proxy.service=api@internal"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - lightstack
-
-  app:
-    build: .
-    container_name: \${PROJECT_NAME:-${project.name}}-app
-    environment:
-      - NODE_ENV=development
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.app.rule=Host(\`app.lvh.me\`)"
-      - "traefik.http.routers.app.tls=true"
-      - "traefik.http.services.app.loadbalancer.server.port=${project.services[0]?.port || 3000}"
-    volumes:
-      - .:/app
-      - /app/node_modules
+      - ./.light/traefik:/etc/traefik/dynamic:ro
     networks:
       - lightstack
 
 networks:
   lightstack:
-    driver: bridge`;
+    driver: bridge
+`;
 }
 
 function generateDevDockerCompose(): string {
   return `services:
   traefik:
     volumes:
-      - ./certs:/certs:ro
+      - ./.light/certs:/certs:ro
       - ./.light/traefik:/etc/traefik/dynamic:ro
-    command:
-      - --api.dashboard=true
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --entrypoints.web.address=:80
-      - --entrypoints.websecure.address=:443
-      - --providers.file.directory=/etc/traefik/dynamic
-      - --serverstransport.insecureskipverify=true`;
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.router.rule=Host(\`router.lvh.me\`)"
+      - "traefik.http.routers.router.tls=true"
+      - "traefik.http.routers.router.service=api@internal"
+`;
 }
 
-function generateProdDockerCompose(): string {
+function generateProdDockerCompose(project: ProjectConfig): string {
   return `services:
   traefik:
     command:
@@ -85,18 +65,15 @@ function generateProdDockerCompose(): string {
       - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
       - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
       - --certificatesresolvers.letsencrypt.acme.email=\${ACME_EMAIL}
-      - --certificatesresolvers.letsencrypt.acme.storage=/acme/acme.json
-    labels:
-      - "traefik.http.routers.app.tls.certresolver=letsencrypt"
-    volumes:
-      - acme_data:/acme
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
 
-volumes:
-  acme_data:`;
+  ${project.services[0]?.name || 'app'}:
+    restart: unless-stopped
+`;
 }
 
 describe('Docker Compose Generation', () => {
-  const sampleProject: Project = {
+  const sampleProject: ProjectConfig = {
     name: 'test-project',
     services: [
       {
@@ -125,12 +102,12 @@ describe('Docker Compose Generation', () => {
       const traefik = composeConfig.services.traefik;
 
       expect(traefik).toBeDefined();
-      expect(traefik.image).toBe('traefik:v3.0');
-      expect(traefik.container_name).toBe('${PROJECT_NAME:-test-project}-traefik');
+      expect(traefik.image).toBe('traefik:v3.5');
+      expect(traefik.container_name).toBe('${PROJECT_NAME:-test-project}-proxy');
 
       // Check required command flags
       expect(traefik.command).toContain('--api.dashboard=true');
-      expect(traefik.command).toContain('--providers.docker=true');
+      expect(traefik.command).toContain('--providers.file.directory=/etc/traefik/dynamic');
       expect(traefik.command).toContain('--entrypoints.web.address=:80');
       expect(traefik.command).toContain('--entrypoints.websecure.address=:443');
     });
@@ -143,42 +120,16 @@ describe('Docker Compose Generation', () => {
       expect(traefik.ports).toContain('8080:8080');
     });
 
-    it('should include Traefik labels for proxy dashboard', () => {
+    it('should include host.docker.internal for proxying to localhost', () => {
       const traefik = composeConfig.services.traefik;
 
-      expect(traefik.labels).toContain('traefik.enable=true');
-      expect(traefik.labels).toContain('traefik.http.routers.proxy.rule=Host(`proxy.lvh.me`)');
-      expect(traefik.labels).toContain('traefik.http.routers.proxy.tls=true');
+      expect(traefik.extra_hosts).toContain('host.docker.internal:host-gateway');
     });
 
-    it('should include app service with correct configuration', () => {
-      const app = composeConfig.services.app;
-
-      expect(app).toBeDefined();
-      expect(app.build).toBe('.');
-      expect(app.container_name).toBe('${PROJECT_NAME:-test-project}-app');
-      expect(app.environment).toContain('NODE_ENV=development');
-    });
-
-    it('should include app service labels for Traefik routing', () => {
-      const app = composeConfig.services.app;
-
-      expect(app.labels).toContain('traefik.enable=true');
-      expect(app.labels).toContain('traefik.http.routers.app.rule=Host(`app.lvh.me`)');
-      expect(app.labels).toContain('traefik.http.routers.app.tls=true');
-      expect(app.labels).toContain('traefik.http.services.app.loadbalancer.server.port=3000');
-    });
-
-    it('should use project service port in load balancer configuration', () => {
-      const projectWithCustomPort: Project = {
-        name: 'custom-port-app',
-        services: [{ name: 'app', type: 'nuxt', port: 8080 }]
-      };
-
-      const composeYaml = generateBaseDockerCompose(projectWithCustomPort);
-      const config = yaml.load(composeYaml) as any;
-
-      expect(config.services.app.labels).toContain('traefik.http.services.app.loadbalancer.server.port=8080');
+    it('should only include Traefik service (no app container)', () => {
+      // Base compose only has Traefik - apps run on localhost
+      expect(composeConfig.services.traefik).toBeDefined();
+      expect(composeConfig.services.app).toBeUndefined();
     });
 
     it('should include lightstack network', () => {
@@ -186,9 +137,9 @@ describe('Docker Compose Generation', () => {
       expect(composeConfig.networks.lightstack.driver).toBe('bridge');
     });
 
-    it('should connect services to lightstack network', () => {
-      expect(composeConfig.services.traefik.networks).toContain('lightstack');
-      expect(composeConfig.services.app.networks).toContain('lightstack');
+    it('should include file provider volumes', () => {
+      const traefik = composeConfig.services.traefik;
+      expect(traefik.volumes).toContain('./.light/traefik:/etc/traefik/dynamic:ro');
     });
 
     it('should not include version attribute', () => {
@@ -214,21 +165,17 @@ describe('Docker Compose Generation', () => {
     it('should include development-specific volumes', () => {
       const traefik = devConfig.services.traefik;
 
-      expect(traefik.volumes).toContain('./certs:/certs:ro');
+      expect(traefik.volumes).toContain('./.light/certs:/certs:ro');
       expect(traefik.volumes).toContain('./.light/traefik:/etc/traefik/dynamic:ro');
     });
 
-    it('should include file provider configuration', () => {
+    it('should include router dashboard labels', () => {
       const traefik = devConfig.services.traefik;
 
-      expect(traefik.command).toContain('--providers.file.directory=/etc/traefik/dynamic');
-      expect(traefik.command).toContain('--serverstransport.insecureskipverify=true');
-    });
-
-    it('should keep API dashboard enabled for development', () => {
-      const traefik = devConfig.services.traefik;
-
-      expect(traefik.command).toContain('--api.dashboard=true');
+      expect(traefik.labels).toContain('traefik.enable=true');
+      expect(traefik.labels).toContain('traefik.http.routers.router.rule=Host(`router.lvh.me`)');
+      expect(traefik.labels).toContain('traefik.http.routers.router.tls=true');
+      expect(traefik.labels).toContain('traefik.http.routers.router.service=api@internal');
     });
   });
 
@@ -236,7 +183,7 @@ describe('Docker Compose Generation', () => {
     let prodConfig: any;
 
     beforeEach(() => {
-      const prodYaml = generateProdDockerCompose();
+      const prodYaml = generateProdDockerCompose(sampleProject);
       prodConfig = yaml.load(prodYaml);
     });
 
@@ -244,7 +191,6 @@ describe('Docker Compose Generation', () => {
       expect(prodConfig).toBeDefined();
       expect(prodConfig.services).toBeDefined();
       expect(prodConfig.services.traefik).toBeDefined();
-      expect(prodConfig.volumes).toBeDefined();
     });
 
     it('should disable API dashboard for production', () => {
@@ -258,24 +204,39 @@ describe('Docker Compose Generation', () => {
 
       expect(traefik.command).toContain('--certificatesresolvers.letsencrypt.acme.httpchallenge=true');
       expect(traefik.command).toContain('--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}');
-      expect(traefik.command).toContain('--certificatesresolvers.letsencrypt.acme.storage=/acme/acme.json');
+      expect(traefik.command).toContain('--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json');
     });
 
-    it('should include certificate resolver in labels', () => {
+    it('should enable Docker provider for production', () => {
       const traefik = prodConfig.services.traefik;
 
-      expect(traefik.labels).toContain('traefik.http.routers.app.tls.certresolver=letsencrypt');
+      expect(traefik.command).toContain('--providers.docker=true');
+      expect(traefik.command).toContain('--providers.docker.exposedbydefault=false');
     });
 
-    it('should include ACME volume configuration', () => {
-      expect(prodConfig.volumes.acme_data).toBeDefined();
-      expect(prodConfig.services.traefik.volumes).toContain('acme_data:/acme');
+    it('should include app service with restart policy', () => {
+      const app = prodConfig.services.app;
+
+      expect(app).toBeDefined();
+      expect(app.restart).toBe('unless-stopped');
+    });
+
+    it('should use first service name from project config', () => {
+      const customProject: ProjectConfig = {
+        name: 'my-app',
+        services: [{ name: 'frontend', type: 'nuxt', port: 3000 }]
+      };
+
+      const prodYaml = generateProdDockerCompose(customProject);
+      const config = yaml.load(prodYaml) as any;
+
+      expect(config.services.frontend).toBeDefined();
     });
   });
 
   describe('project name handling', () => {
-    it('should handle project names with special characters in container names', () => {
-      const specialProject: Project = {
+    it('should handle project names with hyphens in container names', () => {
+      const specialProject: ProjectConfig = {
         name: 'my-special-app',
         services: [{ name: 'app', type: 'nuxt', port: 3000 }]
       };
@@ -283,12 +244,11 @@ describe('Docker Compose Generation', () => {
       const composeYaml = generateBaseDockerCompose(specialProject);
       const config = yaml.load(composeYaml) as any;
 
-      expect(config.services.traefik.container_name).toBe('${PROJECT_NAME:-my-special-app}-traefik');
-      expect(config.services.app.container_name).toBe('${PROJECT_NAME:-my-special-app}-app');
+      expect(config.services.traefik.container_name).toBe('${PROJECT_NAME:-my-special-app}-proxy');
     });
 
     it('should handle empty services array gracefully', () => {
-      const emptyProject: Project = {
+      const emptyProject: ProjectConfig = {
         name: 'empty-project',
         services: []
       };
@@ -298,8 +258,8 @@ describe('Docker Compose Generation', () => {
       const composeYaml = generateBaseDockerCompose(emptyProject);
       const config = yaml.load(composeYaml) as any;
 
-      // Should use default port when no services
-      expect(config.services.app.labels).toContain('traefik.http.services.app.loadbalancer.server.port=3000');
+      // Should still generate Traefik service
+      expect(config.services.traefik).toBeDefined();
     });
   });
 });

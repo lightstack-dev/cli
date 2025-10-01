@@ -45,25 +45,13 @@ function generateTraefikDynamicConfig(services: string[]): string {
 
       // Supabase Studio (Database UI)
       config.http.routers['supabase-studio'] = {
-        rule: 'Host(`db.lvh.me`)',
+        rule: 'Host(`studio.lvh.me`)',
         service: 'supabase-studio',
         tls: true
       };
       config.http.services['supabase-studio'] = {
         loadBalancer: {
           servers: [{ url: 'http://host.docker.internal:54323' }]
-        }
-      };
-
-      // Supabase Storage
-      config.http.routers['supabase-storage'] = {
-        rule: 'Host(`storage.lvh.me`)',
-        service: 'supabase-storage',
-        tls: true
-      };
-      config.http.services['supabase-storage'] = {
-        loadBalancer: {
-          servers: [{ url: 'http://host.docker.internal:54324' }]
         }
       };
     }
@@ -114,16 +102,9 @@ describe('Traefik Dynamic Configuration Generation', () => {
 
     it('should generate Supabase Studio router', () => {
       expect(config.http.routers['supabase-studio']).toBeDefined();
-      expect(config.http.routers['supabase-studio'].rule).toBe('Host(`db.lvh.me`)');
+      expect(config.http.routers['supabase-studio'].rule).toBe('Host(`studio.lvh.me`)');
       expect(config.http.routers['supabase-studio'].service).toBe('supabase-studio');
       expect(config.http.routers['supabase-studio'].tls).toBe(true);
-    });
-
-    it('should generate Supabase Storage router', () => {
-      expect(config.http.routers['supabase-storage']).toBeDefined();
-      expect(config.http.routers['supabase-storage'].rule).toBe('Host(`storage.lvh.me`)');
-      expect(config.http.routers['supabase-storage'].service).toBe('supabase-storage');
-      expect(config.http.routers['supabase-storage'].tls).toBe(true);
     });
 
     it('should generate Supabase API service', () => {
@@ -138,15 +119,10 @@ describe('Traefik Dynamic Configuration Generation', () => {
       expect(config.http.services['supabase-studio'].loadBalancer.servers[0].url).toBe('http://host.docker.internal:54323');
     });
 
-    it('should generate Supabase Storage service', () => {
-      expect(config.http.services['supabase-storage']).toBeDefined();
-      expect(config.http.services['supabase-storage'].loadBalancer.servers).toHaveLength(1);
-      expect(config.http.services['supabase-storage'].loadBalancer.servers[0].url).toBe('http://host.docker.internal:54324');
-    });
-
-    it('should generate exactly 3 routers and 3 services for Supabase', () => {
-      expect(Object.keys(config.http.routers)).toHaveLength(3);
-      expect(Object.keys(config.http.services)).toHaveLength(3);
+    it('should generate exactly 2 routers and 2 services for Supabase', () => {
+      // Only API and Studio in development mode (proxies to Supabase CLI)
+      expect(Object.keys(config.http.routers)).toHaveLength(2);
+      expect(Object.keys(config.http.services)).toHaveLength(2);
     });
   });
 
@@ -164,8 +140,8 @@ describe('Traefik Dynamic Configuration Generation', () => {
       const config = yaml.load(yamlConfig) as TraefikDynamicConfig;
 
       // Should only generate Supabase configs
-      expect(Object.keys(config.http.routers)).toHaveLength(3);
-      expect(Object.keys(config.http.services)).toHaveLength(3);
+      expect(Object.keys(config.http.routers)).toHaveLength(2);
+      expect(Object.keys(config.http.services)).toHaveLength(2);
       expect(config.http.routers['supabase-api']).toBeDefined();
     });
   });

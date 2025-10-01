@@ -15,7 +15,7 @@ export function initCommand(projectName?: string, options: InitOptions = {}) {
 
     // Validate project name
     if (!isValidProjectName(name)) {
-      throw new Error(`Invalid project name: ${name}. Project names must be URL-safe.`);
+      throw new Error(`Invalid project name "${name}". Project names must be lowercase alphanumeric with hyphens only.`);
     }
 
     // Check if project already exists
