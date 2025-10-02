@@ -61,6 +61,7 @@ export async function upCommand(options: UpOptions = {}) {
 
     // Setup SSL certificates for development
     console.log(chalk.blue('ℹ'), `Environment: ${env}`);
+    console.log(); // Visual separation
     if (env === 'development') {
       setupLocalSsl();
       // Generate BaaS proxy configs for development (proxy to Supabase CLI)
@@ -93,15 +94,15 @@ export async function upCommand(options: UpOptions = {}) {
     }
 
     // Check if stack is already running
-    const existingStatus = checkContainerStatus(projectConfig.name, env);
+    const existingStatus = checkContainerStatus(`lightstack-${projectConfig.name}`, env);
     if (existingStatus.hasRunningContainers) {
       // Check if all expected containers are healthy
       const allHealthy = existingStatus.running.length > 0 && existingStatus.failed.length === 0 && existingStatus.created.length === 0;
 
       if (allHealthy) {
-        console.log(chalk.green('✅'), 'Stack is already running and healthy');
+        console.log(chalk.green('✅'), 'Lightstack router is already running');
         const restartCmd = env === 'development' ? 'light restart' : `light restart ${env}`;
-        console.log(chalk.blue('ℹ'), 'Use', chalk.cyan(restartCmd), 'to restart');
+        console.log(chalk.blue('ℹ'), 'Use', chalk.cyan(restartCmd), 'to restart router');
         return;
       } else {
         console.log(chalk.yellow('⚠️'), 'Some containers are unhealthy, restarting...');
@@ -112,7 +113,7 @@ export async function upCommand(options: UpOptions = {}) {
     const composeFiles = getComposeFiles(env);
     const dockerCmd = buildDockerCommand(composeFiles, { detach, projectName: projectConfig.name });
 
-    console.log(chalk.blue('🚀'), `Starting local proxy...`);
+    console.log(chalk.blue('🚀'), 'Starting router...');
 
     // Execute Docker Compose with error handling
     try {
@@ -122,7 +123,7 @@ export async function upCommand(options: UpOptions = {}) {
       console.log(chalk.blue('ℹ'), 'Checking container status...\n');
 
       // Check which containers are actually running
-      const status = checkContainerStatus(projectConfig.name, env);
+      const status = checkContainerStatus(`lightstack-${projectConfig.name}`, env);
 
       if (status.hasRunningContainers) {
         console.log(chalk.yellow('⚠️'), 'Some containers started successfully:');
@@ -153,14 +154,14 @@ export async function upCommand(options: UpOptions = {}) {
       }
     }
 
-    console.log(chalk.green('✅'), 'Proxy started');
+    console.log(chalk.green('✅'), 'Router started');
 
     // Run database migrations for production Supabase stacks
     if (env !== 'development' && existsSync('supabase')) {
       runSupabaseMigrations(projectConfig.name, env);
     }
 
-    console.log('\n' + chalk.bold('Ready to proxy:'));
+    console.log('\n' + chalk.bold('Router ready:'));
 
     // Show configured services
     projectConfig.services.forEach(service => {
@@ -187,12 +188,12 @@ export async function upCommand(options: UpOptions = {}) {
 
     console.log(chalk.green('  ✓'), `${'https://router.lvh.me'.padEnd(25)} → Traefik routing`);
 
-    console.log('\n' + chalk.bold('Start your app:'));
-    console.log('  npm run dev');
-    console.log('  yarn dev');
-    console.log('  bun dev');
+    console.log('\n' + chalk.bold('Start your app with one of:'));
+    console.log('  ' + chalk.cyan('npm run dev'));
+    console.log('  ' + chalk.cyan('yarn dev'));
+    console.log('  ' + chalk.cyan('bun dev'));
 
-    console.log('\n' + chalk.gray('Stop proxy with: light down'));
+    console.log('\n' + chalk.gray('Stop router: ') + chalk.cyan('light down'));
 
   } catch (error) {
     console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : 'Unknown error');
@@ -298,7 +299,8 @@ function buildDockerCommand(
   options: { detach: boolean; projectName: string }
 ): string {
   const fileArgs = composeFiles.map(f => `-f ${f}`).join(' ');
-  const projectArg = `--project-name ${options.projectName}`;
+  // Prefix with 'lightstack-' to avoid conflicts with Supabase CLI or other tools
+  const projectArg = `--project-name lightstack-${options.projectName}`;
   const envFileArg = existsSync('.env') ? '--env-file ./.env' : '';
   const detachFlag = options.detach ? '-d' : '';
 
@@ -316,7 +318,11 @@ function generateBaaSProxyConfigs() {
   writeFileSync('.light/traefik/dynamic.yml', dynamicConfig);
 
   if (detectedBaaSServices.length > 0) {
-    console.log(chalk.blue('ℹ'), `BaaS services detected: ${detectedBaaSServices.join(', ')}`);
+    // More specific message for single service (currently only Supabase supported)
+    if (detectedBaaSServices.includes('Supabase')) {
+      console.log(chalk.blue('ℹ'), 'Supabase instance detected');
+      console.log(); // Visual separation
+    }
   }
 }
 

@@ -23,18 +23,19 @@ export function downCommand(options: DownOptions = {}) {
 
     const projectConfig = getProjectConfig();
 
-    console.log(chalk.blue('🛑'), 'Stopping local proxy...');
+    console.log(chalk.blue('🛑'), 'Stopping router...');
 
     // Simple approach: Just use project name to stop all containers
     // Docker Compose doesn't need the exact compose files to stop containers
-    const projectArg = `--project-name ${projectConfig.name}`;
+    // Prefix with 'lightstack-' to match the project name used in up command
+    const projectArg = `--project-name lightstack-${projectConfig.name}`;
     const volumesFlag = removeVolumes ? '-v' : '';
     const dockerCmd = `docker compose ${projectArg} down ${volumesFlag}`.trim();
 
     // Execute Docker Compose
     execSync(dockerCmd, { stdio: 'inherit' });
 
-    console.log(chalk.green('✅'), 'Local proxy stopped');
+    console.log(chalk.green('✅'), 'Router stopped');
 
     if (removeVolumes) {
       console.log(chalk.yellow('⚠️'), 'Volumes removed - data may be lost');

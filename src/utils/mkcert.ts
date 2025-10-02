@@ -45,7 +45,7 @@ export function installCa(): boolean {
     console.log(chalk.gray('    This may require administrator privileges'));
 
     const result = spawnSync('mkcert', ['-install'], {
-      stdio: 'inherit',
+      stdio: 'pipe', // Silence mkcert's own output
       shell: true
     });
 
@@ -92,6 +92,7 @@ export function generateCertificates(domains: string[] = ['*.lvh.me', 'lvh.me'])
       console.log('Try running: mkcert -install');
       return result;
     }
+    console.log(); // Visual separation after SSL setup
   }
 
   result.caInstalled = true;
