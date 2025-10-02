@@ -53,22 +53,28 @@ docker-compose.prod.yml     # Production overrides (Let's Encrypt, replicas)
 
 **File Structure**:
 ```
-.light/
-├── docker-compose.yml      # Base Docker Compose configuration
-├── docker-compose.dev.yml  # Development overrides
-├── docker-compose.prod.yml # Production overrides
-├── certs/                  # Local SSL certificates (mkcert)
-└── deployments/            # Deployment history and state
-light.config.json           # Project configuration (root level)
-.env                        # User-managed environment variables (root level, gitignored)
+~/.lightstack/
+└── config.yml                          # User config (ACME email - PII)
+
+project-root/
+├── light.config.yml                    # Project config (NO secrets)
+├── .env                                # Secrets (gitignored)
+├── Dockerfile                          # Production build instructions
+└── .light/
+    ├── docker-compose.yml              # Base configuration
+    ├── docker-compose.development.yml  # Dev overrides
+    ├── docker-compose.production.yml   # Prod overrides (full stack)
+    ├── certs/                          # Local SSL certificates (mkcert)
+    └── deployments/                    # Deployment history and state
 ```
 
 **Environment Variable Strategy**:
-- **Single .env file**: Users manage their own `.env` file in project root (follows 12-factor principles)
-- **No CLI-generated .env files**: CLI doesn't create environment files - respects user's existing setup
-- **Explicit .env loading**: Docker Compose commands use `--env-file ./.env` to explicitly load root .env file
-- **Environment-specific configs**: Different environments handled via separate Docker Compose override files, not separate .env files
-- **Production secrets**: Remote servers manage their own environment variables (via cloud console, SSH, etc.)
+- **User config for PII**: `~/.lightstack/config.yml` stores ACME_EMAIL (not in project)
+- **CLI writes secrets to .env**: DNS_API_KEY and other secrets written when configuring environments
+- **No secret copying**: Local and remote `.env` files are separate (CLI prompts for secrets when needed)
+- **Explicit .env loading**: Docker Compose commands use `--env-file ./.env`
+- **Environment-specific configs**: Different environments via Docker Compose override files
+- **Production secrets**: Generated on remote server during first deploy (never copied from local)
 
 **Environment Validation**:
 - Warns when `.env` file is missing but provides defaults
@@ -207,22 +213,28 @@ light up                   # Detects supabase/, deploys complete self-hosted sta
 
 **Supabase Stack Deployment**:
 - **Detection**: Check for `supabase/` directory during `light up`
-- **Development Mode**: Proxy to `supabase start` when available
-- **Production Mode**: Deploy complete self-hosted Supabase Docker stack
-- **Configuration**: Generate Traefik file provider configs (not container labels)
-- **Routing**: Map SSL domains to Supabase services
+- **Development Mode**: Proxy to Supabase CLI (`supabase start`) services
+- **Production Mode (`light up production`)**: Deploy complete self-hosted Supabase Docker stack locally
+- **Remote Deployment (`light deploy`)**: Same stack on remote server
+- **Configuration**: Traefik file provider for dev, Docker provider for production
+- **Routing**: SSL domains map to Supabase services
 
 **URL Mapping** (when Supabase detected):
 ```
-Development:
-https://api.lvh.me      → Supabase API (self-hosted)
-https://studio.lvh.me   → Supabase Studio (self-hosted)
-https://app.lvh.me      → Your application
+Development (light up):
+https://api.lvh.me      → Supabase CLI API (proxy)
+https://studio.lvh.me   → Supabase CLI Studio (proxy)
+https://app.lvh.me      → Your dev server (localhost:3000)
 
-Production:
-https://api.yourdomain.com    → Supabase API (self-hosted)
-https://studio.yourdomain.com → Supabase Studio (self-hosted)
-https://yourdomain.com        → Your application
+Local Production Testing (light up production):
+https://app.local.lightstack.dev      → Containerized app (production build)
+https://api.local.lightstack.dev      → Supabase API (self-hosted container)
+https://studio.local.lightstack.dev   → Supabase Studio (self-hosted container)
+
+Remote Production (light deploy production):
+https://yourdomain.com               → Containerized app
+https://api.yourdomain.com           → Supabase API (self-hosted)
+https://studio.yourdomain.com        → Supabase Studio (self-hosted)
 ```
 
 **Command Boundaries**: Lightstack CLI only accepts defined commands (init, up, down, deploy, status, logs, env). For Supabase-specific operations (migrations, db push), use Supabase CLI directly.

@@ -34,8 +34,8 @@ Building a unified CLI tool that orchestrates self-hosted Supabase deployment fr
 
 ## Technical Context
 **Language/Version**: TypeScript/Node.js 20+ (standard for modern CLI tools)
-**Primary Dependencies**: Commander.js (CLI framework), Docker SDK, Let's Encrypt client
-**Storage**: Local JSON config files (.light/), user-managed .env files
+**Primary Dependencies**: Commander.js (CLI framework), Docker Compose (shell commands), mkcert/Let's Encrypt
+**Storage**: YAML config (light.config.yml), user config (~/.lightstack/config.yml), secrets (.env)
 **Testing**: Vitest (fast, ESM-native test runner)
 **Documentation**: VitePress static site generator, deployed to https://cli.lightstack.dev
 **Target Platform**: macOS, Linux, Windows with WSL2

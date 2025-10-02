@@ -5,7 +5,7 @@ import yaml from 'js-yaml';
 import { confirm } from '@inquirer/prompts';
 import { setupMkcert, generateTraefikTlsConfig } from '../utils/mkcert.js';
 import { getProjectConfig, type ServiceConfig } from '../utils/config.js';
-import { generateSupabaseStack, generateKongConfig, generateSupabaseEnvTemplate, generateSupabaseSecrets } from '../utils/supabase-stack.js';
+import { generateSupabaseStack, generateKongConfig, generateSupabaseSecrets } from '../utils/supabase-stack.js';
 import { getSupabasePorts } from '../utils/supabase-config.js';
 
 interface UpOptions {
@@ -48,7 +48,7 @@ export async function upCommand(options: UpOptions = {}) {
             throw new Error(`Failed to configure environment '${env}'`);
           }
 
-          console.log('\n' + chalk.green('✅'), `Environment '${env}' configured. Now continuing with deployment...\n`);
+          console.log('\n' + chalk.green('✅'), `Environment '${env}' configured. Now starting ${env} infrastructure...\n`);
         } else {
           console.log('\nTo configure later, run:', chalk.cyan(`light env add ${env}`));
           process.exit(0);
@@ -89,28 +89,81 @@ export async function upCommand(options: UpOptions = {}) {
         );
       }
 
+      // Check if Supabase dev environment is running
+      const supabaseDevRunning = checkSupabaseDevEnvironment();
+      if (supabaseDevRunning) {
+        console.log(chalk.yellow('⚠️'), 'Supabase development environment is running');
+        console.log(chalk.yellow('   This conflicts with the production stack (ports, containers)\n'));
+
+        const shouldStop = await confirm({
+          message: 'Stop development environment and start production stack?',
+          default: true
+        });
+
+        if (shouldStop) {
+          console.log(chalk.blue('→'), 'Stopping development environment...');
+          try {
+            execSync('supabase stop', { stdio: 'inherit' });
+
+            // Double-check all Supabase containers are stopped (supabase stop can be flaky)
+            const remainingContainers = execSync('docker ps --filter "name=supabase_" --format "{{.Names}}"', {
+              encoding: 'utf-8'
+            }).trim();
+
+            if (remainingContainers) {
+              console.log(chalk.yellow('⚠️'), 'Some Supabase containers still running, force stopping...');
+              execSync(`docker stop ${remainingContainers.split('\n').join(' ')}`, { stdio: 'ignore' });
+            }
+          } catch (error) {
+            console.log(chalk.yellow('⚠️'), 'Error stopping Supabase, continuing anyway...');
+          }
+          console.log();
+        } else {
+          console.log('\nCancelled. To start production stack later:');
+          console.log('  1. Stop dev:', chalk.cyan('supabase stop'));
+          console.log('  2. Start prod:', chalk.cyan(`light up ${env}`));
+          process.exit(0);
+        }
+      }
+
       // For non-development environments, generate full Supabase stack
-      generateProductionStack(projectConfig, env);
+      // Get SSL email from .env (environment-specific key preferred)
+      const envKey = `${env.toUpperCase()}_ACME_EMAIL`;
+      let sslEmail: string | undefined;
+      if (existsSync('.env')) {
+        const envContent = readFileSync('.env', 'utf-8');
+        const envVars: Record<string, string> = {};
+        envContent.split('\n').forEach(line => {
+          const [key, ...valueParts] = line.split('=');
+          if (key?.trim()) envVars[key.trim()] = valueParts.join('=').trim();
+        });
+        sslEmail = envVars[envKey] || envVars.ACME_EMAIL;
+      }
+
+      generateProductionStack(projectConfig, env, sslEmail);
     }
 
-    // Check if router is already running
-    const existingStatus = checkRouterStatus(projectConfig.name);
-    if (existingStatus.hasRunningContainers) {
-      // Check if all expected containers are healthy
-      const allHealthy = existingStatus.running.length > 0 && existingStatus.failed.length === 0 && existingStatus.created.length === 0;
+    // Check if infrastructure is already running
+    const composeFiles = getComposeFiles(env);
+    const expectedContainers = getExpectedContainerCount(composeFiles);
+    const existingStatus = checkInfrastructureStatus(projectConfig.name, env);
 
-      if (allHealthy) {
-        console.log(chalk.green('✅'), 'Lightstack router is already running');
+    if (existingStatus.hasRunningContainers) {
+      // Check if all expected containers are running and healthy
+      const allExpectedRunning = existingStatus.running.length >= expectedContainers;
+      const allHealthy = existingStatus.failed.length === 0 && existingStatus.created.length === 0;
+
+      if (allExpectedRunning && allHealthy) {
+        console.log(chalk.green('✅'), 'Lightstack infrastructure is already running');
         // Show same helpful output as when starting fresh
         showRouterStatus(projectConfig, env);
         return;
       } else {
-        console.log(chalk.yellow('⚠️'), 'Some containers are unhealthy, restarting...');
+        console.log(chalk.yellow('⚠️'), 'Some containers are missing or unhealthy, restarting...');
       }
     }
 
     // Build Docker Compose command
-    const composeFiles = getComposeFiles(env);
     const dockerCmd = buildDockerCommand(composeFiles, { detach, projectName: projectConfig.name });
 
     console.log(chalk.blue('🚀'), 'Starting router...');
@@ -123,7 +176,7 @@ export async function upCommand(options: UpOptions = {}) {
       console.log(chalk.blue('ℹ'), 'Checking container status...\n');
 
       // Check which containers are actually running
-      const status = checkRouterStatus(projectConfig.name);
+      const status = checkInfrastructureStatus(projectConfig.name, env);
 
       if (status.hasRunningContainers) {
         console.log(chalk.yellow('⚠️'), 'Some containers started successfully:');
@@ -191,38 +244,45 @@ function checkPrerequisites() {
 function checkEnvironment(env: string) {
   const warnings: string[] = [];
 
-  // Check if .env file exists
+  // For non-development environments, check if SSL email is configured in .env
+  if (env !== 'development') {
+    const projectConfig = getProjectConfig();
+    const deployment = projectConfig.deployments?.find(d => d.name === env);
+
+    // Check for environment-specific email key (e.g., PRODUCTION_ACME_EMAIL)
+    const envKey = `${env.toUpperCase()}_ACME_EMAIL`;
+    let hasEmail = false;
+
+    if (existsSync('.env')) {
+      try {
+        const envContent = readFileSync('.env', 'utf-8');
+        const envVars: Record<string, string> = {};
+        envContent
+          .split('\n')
+          .filter(line => line && !line.startsWith('#'))
+          .forEach(line => {
+            const [key, ...valueParts] = line.split('=');
+            if (key?.trim()) {
+              envVars[key.trim()] = valueParts.join('=').trim();
+            }
+          });
+        hasEmail = !!envVars[envKey] || !!envVars.ACME_EMAIL; // Check both specific and generic
+      } catch (error) {
+        warnings.push('Could not parse .env file. Check for syntax errors.');
+      }
+    }
+
+    // Only warn if SSL is Let's Encrypt and no email is configured
+    if (deployment?.ssl?.provider === 'letsencrypt' && !hasEmail) {
+      warnings.push(`${envKey} not set in .env. Required for Let's Encrypt SSL certificates.`);
+    }
+  }
+
+  // Check if .env file exists (informational only)
   if (!existsSync('.env')) {
     console.log(chalk.blue('ℹ'), 'No .env file found. Using built-in defaults (PROJECT_NAME, APP_PORT=3000).');
     console.log(chalk.blue('ℹ'), 'Create a .env file only if you need custom environment variables.');
     console.log(); // Empty line for spacing
-  } else {
-    // If .env exists, check for commonly needed variables
-    try {
-      const envContent = readFileSync('.env', 'utf-8');
-      const envVars: Record<string, string> = {};
-      envContent
-        .split('\n')
-        .filter(line => line && !line.startsWith('#'))
-        .forEach(line => {
-          const [key, ...valueParts] = line.split('=');
-          if (key?.trim()) {
-            envVars[key.trim()] = valueParts.join('=').trim();
-          }
-        });
-
-      // For production, check critical variables
-      if (env === 'production') {
-        if (!envVars.ACME_EMAIL) {
-          warnings.push('ACME_EMAIL not set. Required for Let\'s Encrypt SSL certificates in production.');
-        }
-      }
-
-      // Removed overly broad common variable checks
-      // Users will get errors from their actual services if critical vars are missing
-    } catch (error) {
-      warnings.push('Could not parse .env file. Check for syntax errors.');
-    }
   }
 
   // Show warnings if any
@@ -232,14 +292,6 @@ function checkEnvironment(env: string) {
       console.log(chalk.yellow(`  ${warning}`));
     });
     console.log(); // Empty line for spacing
-  }
-
-  // For remote production deployments (not local testing), we need ACME_EMAIL
-  // But for local testing with local.lightstack.dev, we don't need Let's Encrypt
-  const isLocalTesting = env === 'production' && process.cwd().includes('test-project');
-  if (env === 'production' && !existsSync('.env') && !isLocalTesting) {
-    console.log(chalk.yellow('⚠️'), 'Production deployment will require .env file with ACME_EMAIL for SSL certificates.');
-    console.log(chalk.yellow('⚠️'), 'For local testing, this is not required.');
   }
 }
 
@@ -415,7 +467,7 @@ function generateTraefikDynamicConfig(appServices: ServiceConfig[], baasServices
   });
 }
 
-function generateProductionStack(projectConfig: ReturnType<typeof getProjectConfig>, env: string) {
+function generateProductionStack(projectConfig: ReturnType<typeof getProjectConfig>, env: string, sslEmail?: string) {
   console.log(chalk.blue('🔧'), `Generating self-hosted Supabase stack for ${env}...`);
 
   // Get domain from deployment config
@@ -426,12 +478,15 @@ function generateProductionStack(projectConfig: ReturnType<typeof getProjectConf
   const supabaseComposePath = `.light/docker-compose.supabase.yml`;
 
   if (!existsSync(supabaseComposePath)) {
-    // Generate Supabase stack
+    // Check if production secrets already exist in .env
+    const secrets = loadOrGenerateSecrets(env);
+
+    // Generate Supabase stack (uses .env secrets via ${VAR} syntax)
     const supabaseStack = generateSupabaseStack({
       projectName: projectConfig.name,
       domain,
       environment: env,
-      sslEmail: projectConfig.deployments?.find(d => d.name === env)?.ssl?.email
+      sslEmail
     });
 
     writeFileSync(supabaseComposePath, supabaseStack);
@@ -440,14 +495,12 @@ function generateProductionStack(projectConfig: ReturnType<typeof getProjectConf
     mkdirSync('.light/volumes/api', { recursive: true });
     writeFileSync('.light/volumes/api/kong.yml', generateKongConfig());
 
-    // Generate secrets file
-    const secrets = generateSupabaseSecrets();
-    const envTemplate = generateSupabaseEnvTemplate(secrets);
-    writeFileSync('.light/.env.supabase', envTemplate);
-
-    console.log(chalk.yellow('⚠️'), 'Generated Supabase stack with new secrets');
-    console.log(chalk.yellow('⚠️'), chalk.bold('IMPORTANT: Save the secrets in .light/.env.supabase to a secure location!'));
-    console.log(chalk.yellow('⚠️'), 'These secrets cannot be recovered if lost.\n');
+    if (secrets.generated) {
+      console.log(chalk.green('✅'), `Production secrets generated in .env`);
+      console.log(chalk.blue('ℹ'), 'Secrets are stored locally and gitignored\n');
+    } else {
+      console.log(chalk.blue('ℹ'), 'Using existing production secrets from .env\n');
+    }
   } else {
     console.log(chalk.blue('ℹ'), 'Using existing Supabase stack configuration');
   }
@@ -507,7 +560,7 @@ interface ContainerStatus {
   created: string[];
 }
 
-function checkRouterStatus(projectName: string): ContainerStatus {
+function checkInfrastructureStatus(projectName: string, env: string): ContainerStatus {
   const status: ContainerStatus = {
     hasRunningContainers: false,
     running: [],
@@ -516,11 +569,14 @@ function checkRouterStatus(projectName: string): ContainerStatus {
   };
 
   try {
-    // Check specifically for our router container (named ${projectName}-router)
-    // This avoids conflicts with Supabase CLI containers in the same project
-    const containerName = `${projectName}-router`;
+    // Check for all Lightstack containers (router + optional Supabase stack)
+    // In production mode, we need both router and Supabase containers
+    const filter = env === 'development'
+      ? `name=^${projectName}-router$`  // Dev: just router
+      : `name=${projectName}-`;          // Prod: router + all Supabase services
+
     const output = execSync(
-      `docker ps -a --filter "name=^${containerName}$" --format "{{.Names}}\t{{.Status}}"`,
+      `docker ps -a --filter "${filter}" --format "{{.Names}}\t{{.Status}}"`,
       { encoding: 'utf-8' }
     );
 
@@ -555,7 +611,22 @@ function checkRouterStatus(projectName: string): ContainerStatus {
   return status;
 }
 
-function runSupabaseMigrations(_projectName: string, _env: string): void {
+function getExpectedContainerCount(composeFiles: string[]): number {
+  // Rough estimation based on compose files
+  // - Base file: 1 (router)
+  // - Supabase file: 8 (db, kong, auth, rest, realtime, storage, studio, meta)
+  // - Env-specific: 0 (just overrides)
+
+  let count = 1; // Always have router
+
+  if (composeFiles.some(f => f.includes('supabase'))) {
+    count += 8; // Supabase stack
+  }
+
+  return count;
+}
+
+function runSupabaseMigrations(_projectName: string, env: string): void {
   console.log(chalk.blue('\n🗄️'), 'Applying database migrations...');
 
   // Check if migrations directory exists
@@ -566,10 +637,16 @@ function runSupabaseMigrations(_projectName: string, _env: string): void {
   }
 
   try {
-    // Get database password from generated secrets
-    const secretsFile = readFileSync('.light/.env.supabase', 'utf-8');
-    const passwordMatch = secretsFile.match(/POSTGRES_PASSWORD=(.+)/);
-    const password = passwordMatch?.[1] || 'postgres';
+    // Get database password from .env
+    const envPrefix = env.toUpperCase();
+    const passwordKey = `${envPrefix}_POSTGRES_PASSWORD`;
+
+    let password = 'postgres';
+    if (existsSync('.env')) {
+      const envContent = readFileSync('.env', 'utf-8');
+      const match = envContent.match(new RegExp(`${passwordKey}=(.+)`));
+      password = match?.[1]?.trim() || 'postgres';
+    }
 
     // Build database URL
     const dbUrl = `postgresql://postgres:${password}@localhost:5432/postgres`;
@@ -588,7 +665,7 @@ function runSupabaseMigrations(_projectName: string, _env: string): void {
     console.log(chalk.yellow('\n⚠️'), 'Failed to apply migrations');
     console.log(chalk.blue('💡'), 'You can apply them manually with:');
     console.log(chalk.cyan(`  supabase db push --db-url "postgresql://postgres:PASSWORD@localhost:5432/postgres"`));
-    console.log(chalk.gray('  (Replace PASSWORD with the value from .light/.env.supabase)\n'));
+    console.log(chalk.gray('  (Replace PASSWORD with ${env.toUpperCase()}_POSTGRES_PASSWORD from .env)\n'));
   }
 }
 
@@ -629,4 +706,79 @@ function showRouterStatus(projectConfig: ReturnType<typeof getProjectConfig>, en
   console.log('\n' + chalk.bold('Manage router:'));
   console.log('  ' + chalk.gray('Restart: ') + chalk.cyan('light restart'));
   console.log('  ' + chalk.gray('Stop:    ') + chalk.cyan('light down'));
+}
+
+function checkSupabaseDevEnvironment(): boolean {
+  try {
+    // Check if Supabase CLI containers are running
+    const output = execSync('docker ps --filter "name=supabase_" --format "{{.Names}}"', {
+      encoding: 'utf-8'
+    });
+    return output.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function loadOrGenerateSecrets(env: string): { generated: boolean; secrets: Record<string, string> } {
+  const envFile = '.env';
+  const prefix = env.toUpperCase();
+
+  // Required secret keys with environment prefix
+  const requiredKeys = [
+    `${prefix}_POSTGRES_PASSWORD`,
+    `${prefix}_JWT_SECRET`,
+    `${prefix}_ANON_KEY`,
+    `${prefix}_SERVICE_KEY`
+  ];
+
+  let envContent = '';
+  const existingSecrets: Record<string, string> = {};
+
+  // Load existing .env file
+  if (existsSync(envFile)) {
+    envContent = readFileSync(envFile, 'utf-8');
+    envContent.split('\n').forEach(line => {
+      const [key, ...valueParts] = line.split('=');
+      if (key?.trim()) {
+        existingSecrets[key.trim()] = valueParts.join('=').trim();
+      }
+    });
+  }
+
+  // Check if all required secrets exist
+  const allSecretsExist = requiredKeys.every(key => existingSecrets[key]);
+
+  if (allSecretsExist) {
+    return { generated: false, secrets: existingSecrets };
+  }
+
+  // Generate new secrets
+  const secrets = generateSupabaseSecrets();
+  const lines = envContent.split('\n');
+
+  // Add section header if needed
+  if (!envContent.includes(`# ${env} Supabase secrets`)) {
+    lines.push('');
+    lines.push(`# ${env} Supabase secrets (auto-generated)`);
+  }
+
+  // Add missing secrets
+  if (!existingSecrets[`${prefix}_POSTGRES_PASSWORD`]) {
+    lines.push(`${prefix}_POSTGRES_PASSWORD=${secrets.postgresPassword}`);
+  }
+  if (!existingSecrets[`${prefix}_JWT_SECRET`]) {
+    lines.push(`${prefix}_JWT_SECRET=${secrets.jwtSecret}`);
+  }
+  if (!existingSecrets[`${prefix}_ANON_KEY`]) {
+    lines.push(`${prefix}_ANON_KEY=${secrets.anonKey}`);
+  }
+  if (!existingSecrets[`${prefix}_SERVICE_KEY`]) {
+    lines.push(`${prefix}_SERVICE_KEY=${secrets.serviceKey}`);
+  }
+
+  // Write back to .env
+  writeFileSync(envFile, lines.join('\n'));
+
+  return { generated: true, secrets: existingSecrets };
 }

@@ -34,18 +34,22 @@ light --version                  # Show version
 
 **Behavior**:
 1. Validate project name (URL-safe, no spaces)
-2. Create `light.config.yml` with default configuration
-3. Generate base Docker Compose files
-4. Create `.env` template (environment files created on demand)
-5. Install mkcert and generate local certificates
-6. Display next steps to user
+2. Prompt for ACME email (for Let's Encrypt SSL certificates)
+   - Stored in `~/.lightstack/config.yml` (user config, NOT project)
+   - Used across all projects on this machine
+3. Create `light.config.yml` with default configuration (NO PII)
+4. Generate base Docker Compose files (base, development, production)
+5. Generate Dockerfile for production builds
+6. Install mkcert and generate local certificates
+7. Display next steps to user
 
 **Success Output**:
 ```
 ✓ Project 'my-app' initialized
 ✓ Docker Compose files generated
+✓ Dockerfile created for production builds
 ✓ Local certificates created
-✓ Environment files created
+✓ ACME email saved to user config (~/.lightstack/config.yml)
 
 Next steps:
   light up              # Start development
@@ -84,10 +88,17 @@ Next steps:
 **Behavior for Production (local testing)**:
 1. Validate prerequisites (Supabase CLI, supabase/ directory)
 2. Check if environment configured in light.config.yml
-3. Generate complete Supabase Docker Compose stack with secure secrets
-4. Start all services with health checks
-5. Apply database migrations automatically
-6. Display URLs (using local.lightstack.dev domain)
+   - If not configured → Run `light env add production` interactively
+3. Check for DNS_API_KEY in .env
+   - If missing → Prompt for DNS API key and save to .env
+4. Read ACME_EMAIL from ~/.lightstack/config.yml
+5. Start complete production stack locally (using docker-compose.production.yml)
+   - Domain: local.lightstack.dev
+   - Let's Encrypt DNS challenge (real certificate)
+   - Containerized app (built from Dockerfile)
+   - All Supabase services
+6. Apply database migrations automatically
+7. Display URLs
 
 **Success Output (Development)**:
 ```
@@ -110,11 +121,12 @@ Stop with: light down
 ✅ Production stack started
 
 Services running:
+  ✓ https://app.local.lightstack.dev      → Containerized app
   ✓ https://api.local.lightstack.dev      → Supabase API
   ✓ https://studio.local.lightstack.dev   → Supabase Studio
 
 Database migrations applied
-Secrets saved to .light/.env.supabase
+Production secrets in .env (gitignored)
 Stop with: light down production
 ```
 
@@ -140,12 +152,19 @@ Stop with: light down production
 
 **Behavior** (GitOps Approach):
 1. Validate target environment exists in configuration
-2. Validate deployment prerequisites (SSH access, Docker on target, git repository)
-3. SSH to target server
-4. Navigate to project directory (`cd /opt/project`)
-5. Checkout specified git tag/commit (`git checkout v1.2.3`)
-6. Execute identical command remotely (`light up --env production`)
-7. Run health checks and report deployment status
+   - If not configured → Run `light env add <environment>` interactively
+2. **Confirmation prompt for production**: "Deploy to production? [y/N]"
+3. Validate deployment prerequisites (SSH access, Docker on target, git repository)
+4. SSH to target server
+5. Clone repository on first deploy (`git clone` to `/opt/project`)
+   - Subsequent deploys: navigate to existing directory
+6. Checkout specified git tag/commit (`git checkout v1.2.3`)
+7. Check for `.env` on server
+   - If missing → Prompt for DNS_API_KEY and other secrets
+   - Generate production secrets and save to server's `.env`
+8. Copy ACME_EMAIL from `~/.lightstack/config.yml` to server environment
+9. Execute identical command remotely (`light up production`)
+10. Run health checks and report deployment status
 
 **Key Innovation**: Same `light up` command works locally and remotely - perfect dev/prod parity
 
@@ -198,34 +217,41 @@ Git tag deployed: v1.2.3
 
 **Inputs**:
 - `name`: Environment name (e.g., production, staging, uat)
-- `--host <host>`: SSH host address
+- `--host <host>`: SSH host address (optional, defaults to domain)
 - `--domain <domain>`: Domain name for this environment
 - `--user <user>`: SSH user (defaults to ubuntu)
 - `--port <port>`: SSH port (defaults to 22)
 - `--no-ssl`: Disable SSL
-- `--ssl-email <email>`: Email for Let's Encrypt SSL
+- `--dns-provider <provider>`: DNS provider for Let's Encrypt (cloudflare, route53, etc.)
+- `--dns-api-key <key>`: DNS API key for DNS challenge
 
 **Behavior**:
 1. Validate environment name (lowercase, alphanumeric, hyphens only)
 2. Check environment doesn't already exist
 3. Collect configuration via interactive prompts or command line options
-4. Add deployment configuration to light.config.yml
-5. Preserve existing configuration and formatting
+4. Add deployment configuration to light.config.yml (NO secrets)
+5. Save DNS_API_KEY to .env (gitignored)
+6. Preserve existing configuration and formatting
 
 **Interactive Flow** (when run without options):
 ```
 📍 Deployment target configuration for 'production'
 
-Host (SSH address): prod.myserver.com
-Domain: example.com
+Domain (public domain): example.com
+SSH host [example.com]:
 SSH user [ubuntu]: deploy
 SSH port [22]:
 Enable SSL [Y/n]: y
 SSL provider [letsencrypt]:
-SSL email: admin@example.com
+DNS provider (for Let's Encrypt): cloudflare
+DNS API key: ********************
 
 ✅ Added 'production' environment to light.config.yml
+✅ DNS API key saved to .env (gitignored)
 
+ACME email already configured: dev@example.com (from ~/.lightstack/config.yml)
+
+To test locally: light up production
 To deploy: light deploy production
 To edit: Update the configuration in light.config.yml
 ```
@@ -233,9 +259,10 @@ To edit: Update the configuration in light.config.yml
 **Success Output**:
 ```
 ✅ Added 'production' environment to light.config.yml
+✅ DNS API key saved to .env
 
+To test locally: light up production
 To deploy: light deploy production
-To edit: Update the configuration in light.config.yml
 ```
 
 #### `light env list`

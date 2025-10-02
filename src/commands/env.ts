@@ -2,8 +2,9 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { input, confirm, select } from '@inquirer/prompts';
 import { loadProjectConfig, type DeploymentConfig } from '../utils/config.js';
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import yaml from 'js-yaml';
+import { getAcmeEmail, getUserConfigPath } from '../utils/user-config.js';
 
 export function envCommand() {
   const env = new Command('env')
@@ -71,14 +72,15 @@ async function addEnvironment(name: string, options: EnvAddOptions) {
     console.log(chalk.blue('📍'), `Deployment target configuration for '${name}'\n`);
 
     // Collect configuration via prompts or options
-    const host = options.host || await input({
-      message: 'Host (SSH address):',
-      validate: (value: string) => value.length > 0 || 'Host is required'
+    const domain = options.domain || await input({
+      message: 'Domain (public domain for your app):',
+      validate: (value: string) => value.length > 0 || 'Domain is required'
     });
 
-    const domain = options.domain || await input({
-      message: 'Domain:',
-      validate: (value: string) => value.length > 0 || 'Domain is required'
+    // Host is optional - defaults to domain for SSH
+    const host = options.host || await input({
+      message: 'SSH host (leave empty to use domain):',
+      default: domain
     });
 
     const user = options.user || await input({
@@ -93,6 +95,8 @@ async function addEnvironment(name: string, options: EnvAddOptions) {
     const port = parseInt(portStr);
 
     let sslConfig = undefined;
+    let dnsApiKey: string | undefined = undefined;
+
     if (options.ssl !== false) {
       // Only prompt if not explicitly disabled via --no-ssl
       const enableSsl = options.ssl === undefined ? await confirm({
@@ -102,7 +106,7 @@ async function addEnvironment(name: string, options: EnvAddOptions) {
 
       if (enableSsl) {
         // Only prompt for provider if not running with command line flags
-        const sslProvider = options.sslEmail ? 'letsencrypt' : await select({
+        const sslProvider = await select({
           message: 'SSL provider:',
           choices: [
             { name: 'Let\'s Encrypt (automatic)', value: 'letsencrypt' },
@@ -111,30 +115,46 @@ async function addEnvironment(name: string, options: EnvAddOptions) {
           default: 'letsencrypt'
         });
 
-        let sslEmail = undefined;
         if (sslProvider === 'letsencrypt') {
-          sslEmail = options.sslEmail || await input({
-            message: 'SSL email (for Let\'s Encrypt notifications):',
-            validate: (value: string) => {
-              const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-              return emailRegex.test(value) || 'Please enter a valid email address';
-            }
+          // Prompt for DNS provider
+          const dnsProvider = await select({
+            message: 'DNS provider (for Let\'s Encrypt DNS challenge):',
+            choices: [
+              { name: 'Cloudflare', value: 'cloudflare' },
+              { name: 'Route53 (AWS)', value: 'route53' },
+              { name: 'DigitalOcean', value: 'digitalocean' },
+              { name: 'Gandi', value: 'gandi' },
+              { name: 'Namecheap', value: 'namecheap' }
+            ],
+            default: 'cloudflare'
           });
-        }
 
-        sslConfig = {
-          enabled: true,
-          provider: sslProvider as 'letsencrypt' | 'manual',
-          ...(sslEmail && { email: sslEmail })
-        };
+          // Prompt for DNS API key
+          dnsApiKey = await input({
+            message: 'DNS API key:',
+            validate: (value: string) => value.length > 0 || 'DNS API key is required for Let\'s Encrypt'
+          });
+
+          sslConfig = {
+            enabled: true,
+            provider: sslProvider as 'letsencrypt' | 'manual',
+            dnsProvider: dnsProvider as 'cloudflare' | 'route53' | 'digitalocean' | 'gandi' | 'namecheap'
+            // DNS API key is stored in .env, not config file (secret should not be committed)
+          };
+        } else {
+          sslConfig = {
+            enabled: true,
+            provider: sslProvider as 'letsencrypt' | 'manual'
+          };
+        }
       }
     }
 
     // Create deployment configuration
     const newDeployment: DeploymentConfig = {
       name,
-      host,
       domain,
+      ...(host !== domain && { host }), // Only include host if different from domain
       port,
       user,
       ...(sslConfig && { ssl: sslConfig })
@@ -143,9 +163,27 @@ async function addEnvironment(name: string, options: EnvAddOptions) {
     // Update config file
     updateConfigFile(configResult.filepath, configResult.config, newDeployment);
 
+    // Write DNS API key to .env if provided (secret should not be committed to config)
+    if (dnsApiKey) {
+      writeDnsApiKeyToEnv(name, dnsApiKey);
+    }
+
     console.log('\n' + chalk.green('✅'), `Added '${name}' environment to ${configResult.filepath}`);
-    console.log('\nTo deploy:', chalk.cyan(`light deploy ${name}`));
-    console.log('To edit: Update the configuration in', chalk.cyan(configResult.filepath));
+    if (dnsApiKey) {
+      console.log(chalk.green('✅'), `DNS API key saved to .env (gitignored)`);
+    }
+
+    const acmeEmail = getAcmeEmail();
+    if (acmeEmail) {
+      console.log('\n' + chalk.blue('ℹ'), `ACME email already configured: ${acmeEmail} (from ${getUserConfigPath()})`);
+    } else {
+      console.log('\n' + chalk.yellow('⚠'), `ACME email not configured. Run "light init" to configure it.`);
+    }
+
+    console.log('\nNext steps:');
+    console.log('  Test locally:', chalk.cyan(`light up ${name}`));
+    console.log('  Deploy:', chalk.cyan(`light deploy ${name}`));
+    console.log('  Edit:', chalk.gray(`Update configuration in ${configResult.filepath}`));
 
   } catch (error) {
     console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : 'Unknown error');
@@ -172,8 +210,8 @@ function listEnvironments() {
 
     deployments.forEach(env => {
       console.log(chalk.green('●'), chalk.bold(env.name));
-      console.log('  Host:', env.host);
-      console.log('  Domain:', env.domain || '(not set)');
+      console.log('  Domain:', env.domain);
+      console.log('  SSH:', env.host ? `${env.host} (override)` : env.domain);
       console.log('  User:', env.user || '(default)');
       console.log('  Port:', env.port || 22);
       console.log('  SSL:', env.ssl?.enabled ?
@@ -274,4 +312,32 @@ function updateConfigFile(filepath: string, _config: unknown, newDeployment: Dep
   });
 
   writeFileSync(filepath, newContent);
+}
+
+function writeDnsApiKeyToEnv(envName: string, apiKey: string) {
+  const envFile = '.env';
+  const envKey = `${envName.toUpperCase()}_DNS_API_KEY`;
+
+  let envContent = '';
+  if (existsSync(envFile)) {
+    envContent = readFileSync(envFile, 'utf-8');
+  }
+
+  // Check if key already exists
+  const lines = envContent.split('\n');
+  const existingIndex = lines.findIndex(line => line.startsWith(`${envKey}=`));
+
+  if (existingIndex !== -1) {
+    // Update existing
+    lines[existingIndex] = `${envKey}=${apiKey}`;
+  } else {
+    // Add new (with section header if this is first env var)
+    if (!envContent.includes('# Deployment secrets')) {
+      lines.push('');
+      lines.push('# Deployment secrets (not committed to git)');
+    }
+    lines.push(`${envKey}=${apiKey}`);
+  }
+
+  writeFileSync(envFile, lines.join('\n'));
 }

@@ -48,8 +48,8 @@ program
   .description('Initialize a new Lightstack project')
   .argument('[project-name]', 'Project name (defaults to current directory name)')
   .option('--force', 'Overwrite existing configuration')
-  .action((projectName: string | undefined, options: unknown) => {
-    initCommand(projectName, options as { force?: boolean });
+  .action(async (projectName: string | undefined, options: unknown) => {
+    await initCommand(projectName, options as { force?: boolean });
   });
 
 program

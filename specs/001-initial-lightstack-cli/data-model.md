@@ -38,14 +38,20 @@ A deployment target represents where the application can be deployed.
 
 **What it contains:**
 - Environment name (production, staging, etc.)
-- Server connection details
+- Server connection details (host, user, port)
 - Domain configuration for SSL
+- DNS provider for Let's Encrypt (cloudflare, route53, etc.)
 - Rollback preferences
+
+**What it does NOT contain (stored separately):**
+- ACME email (in `~/.lightstack/config.yml` - PII)
+- DNS API key (in `.env` - secret)
+- Other secrets (in `.env` - secret)
 
 **Key rules:**
 - Target names must be unique within a project
-- Each target has its own environment variables
-- Targets can have different SSL configurations
+- Each target has separate secrets in local vs remote `.env`
+- Targets can have different SSL and DNS configurations
 
 ### Environment Configuration
 Environment-specific deployment configuration that maps to deployment targets.
@@ -126,15 +132,19 @@ Initiated → Building → Deploying → Health Check → Complete
 
 ### Configuration Files
 ```
+~/.lightstack/
+└── config.yml           # User config (ACME email - PII, not in project)
+
 project-root/
-├── light.config.yml     # Main project configuration (YAML)
-├── .env                  # User-managed environment variables (gitignored)
+├── light.config.yml     # Main project configuration (YAML, NO secrets)
+├── .env                  # Secrets (DNS_API_KEY, etc. - gitignored)
+├── Dockerfile            # Production build configuration
 ├── supabase/             # Supabase project files (if using Supabase)
 │   └── config.toml       # Supabase configuration (used for detection)
 └── .light/               # CLI-generated files
-    ├── docker-compose.yml     # Base Docker Compose configuration
-    ├── docker-compose.dev.yml # Development overrides
-    ├── docker-compose.prod.yml # Production overrides
+    ├── docker-compose.yml           # Base Docker Compose configuration
+    ├── docker-compose.development.yml # Development overrides
+    ├── docker-compose.production.yml  # Production overrides (full stack)
     ├── certs/             # Local SSL certificates (mkcert)
     ├── traefik/           # Traefik dynamic configuration
     │   └── dynamic.yml    # BaaS proxy routes (generated when BaaS detected)
@@ -142,11 +152,12 @@ project-root/
 ```
 
 ### Environment Variable Strategy (12-Factor Principles)
-- **Single .env file**: Users create and manage `.env` in project root
-- **No CLI .env generation**: CLI respects existing user setup
+- **User config for PII**: `~/.lightstack/config.yml` stores ACME_EMAIL (PII, not in project)
+- **Project .env for secrets**: CLI writes DNS_API_KEY to `.env` when configuring environments
+- **No secret copying**: Local and remote environments have separate `.env` files
 - **Local development**: `.env` file used automatically via `--env-file ./.env`
-- **Remote deployments**: Servers manage their own environment variables
-- **Secrets separation**: Production secrets never in config files
+- **Remote deployments**: Servers have their own `.env` (CLI prompts for secrets on first deploy)
+- **Secrets separation**: Production secrets never in config files or git
 
 ### Generated Docker Compose
 Lightstack CLI generates Docker Compose files based on the project configuration:

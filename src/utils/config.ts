@@ -18,13 +18,14 @@ const ServiceSchema = z.object({
 const SSLConfigSchema = z.object({
   enabled: z.boolean(),
   provider: z.enum(['letsencrypt', 'manual']).optional(),
-  email: z.string().email().optional(),
+  dnsProvider: z.enum(['cloudflare', 'route53', 'digitalocean', 'gandi', 'namecheap']).optional(),
+  // DNS API key is stored in .env, not config (secret should not be committed)
 });
 
 const DeploymentTargetSchema = z.object({
   name: z.string().min(1),
-  host: z.string().min(1),
-  domain: z.string().optional(),
+  domain: z.string().min(1), // Required: public domain for routing and default SSH target
+  host: z.string().optional(), // Optional: override SSH target (e.g., internal IP via Tailscale)
   port: z.number().int().positive().optional(),
   user: z.string().optional(),
   ssl: SSLConfigSchema.optional(),

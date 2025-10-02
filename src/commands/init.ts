@@ -2,13 +2,15 @@ import { writeFileSync, existsSync, mkdirSync, readFileSync, appendFileSync } fr
 import { basename } from 'path';
 import chalk from 'chalk';
 import yaml from 'js-yaml';
+import { input } from '@inquirer/prompts';
 import type { ProjectConfig } from '../utils/config.js';
+import { hasAcmeEmail, setAcmeEmail, getAcmeEmail, getUserConfigPath } from '../utils/user-config.js';
 
 interface InitOptions {
   force?: boolean;
 }
 
-export function initCommand(projectName?: string, options: InitOptions = {}) {
+export async function initCommand(projectName?: string, options: InitOptions = {}) {
   try {
     const name = projectName || basename(process.cwd());
     const force = options.force || false;
@@ -21,6 +23,23 @@ export function initCommand(projectName?: string, options: InitOptions = {}) {
     // Check if project already exists
     if ((existsSync('light.config.yml') || existsSync('light.config.yml')) && !force) {
       throw new Error('Project already exists. Use --force to overwrite.');
+    }
+
+    // Prompt for ACME email if not already configured
+    if (!hasAcmeEmail()) {
+      console.log(chalk.blue('ℹ'), 'ACME email is required for Let\'s Encrypt SSL certificates');
+      const email = await input({
+        message: 'Enter your email for ACME/Let\'s Encrypt:',
+        validate: (value) => {
+          if (!value) return 'Email is required';
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Please enter a valid email';
+          return true;
+        }
+      });
+      setAcmeEmail(email);
+      console.log(chalk.green('✅'), `ACME email saved to ${getUserConfigPath()}`);
+    } else {
+      console.log(chalk.blue('ℹ'), `Using ACME email: ${getAcmeEmail()} (from ${getUserConfigPath()})`);
     }
 
     // Create project configuration
@@ -50,12 +69,17 @@ export function initCommand(projectName?: string, options: InitOptions = {}) {
     // Create basic Docker Compose files
     createDockerComposeFiles(project);
 
+    // Create Dockerfile for production builds
+    createDockerfile();
+
     // Update .gitignore
     updateGitignore();
 
     // Success message
     console.log(chalk.green('✅'), `Project '${name}' initialized`);
-    console.log(chalk.green('✅'), 'Proxy configuration created');
+    console.log(chalk.green('✅'), 'Docker Compose files generated');
+    console.log(chalk.green('✅'), 'Dockerfile created for production builds');
+    console.log(chalk.green('✅'), `ACME email configured: ${getAcmeEmail()}`);
 
     console.log('\n' + chalk.bold('Next steps:'));
     console.log('  1. Start the proxy:');
@@ -132,31 +156,67 @@ networks:
       - --api.dashboard=false
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
       - --entrypoints.web.http.redirections.entryPoint.to=websecure
       - --entrypoints.web.http.redirections.entryPoint.scheme=https
-      - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
-      - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=\${DNS_PROVIDER}
-      - --certificatesresolvers.letsencrypt.acme.email=\${ACME_EMAIL}
-      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
-    environment:
-      - DNS_PROVIDER=\${DNS_PROVIDER}
-
-  ${project.services[0]?.name || 'app'}:
-    restart: unless-stopped
+      # Note: For local production testing, SSL certs are in file provider
+      # For remote deployment, add Let's Encrypt configuration via environment-specific overrides
+    volumes:
+      - ./traefik:/etc/traefik/dynamic:ro
+      - ./certs:/certs:ro
 `;
 
   writeFileSync('.light/docker-compose.production.yml', prodCompose);
+}
+
+function createDockerfile() {
+  // Don't overwrite existing Dockerfile
+  if (existsSync('Dockerfile')) {
+    return;
+  }
+
+  const dockerfile = `# Lightstack Production Build
+# This Dockerfile is used for production deployments
+
+FROM node:20-alpine AS base
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json pnpm-lock.yaml* ./
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile --prod
+
+# Copy application code
+COPY . .
+
+# Build application (adjust this for your framework)
+RUN pnpm run build
+
+# Expose port (adjust to match your app's port)
+EXPOSE 3000
+
+# Start application (adjust command for your framework)
+CMD ["pnpm", "start"]
+`;
+
+  writeFileSync('Dockerfile', dockerfile);
 }
 
 function updateGitignore() {
   const lightStackEntries = [
     '',
     '# Lightstack',
-    '.light/certs/',
-    '.light/traefik/',
-    '.env'
+    '.light/',  // All generated infrastructure files
+    '.env',     // All environment secrets (including production)
+    '.env.local'  // Local environment overrides
   ];
 
   if (existsSync('.gitignore')) {
