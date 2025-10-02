@@ -215,6 +215,10 @@ light up                   # Detects supabase/, deploys complete self-hosted sta
 - **Detection**: Check for `supabase/` directory during `light up`
 - **Development Mode**: Proxy to Supabase CLI (`supabase start`) services
 - **Production Mode (`light up production`)**: Deploy complete self-hosted Supabase Docker stack locally
+  - **Implementation**: Bundle official Supabase docker files from https://github.com/supabase/supabase/tree/master/docker
+  - **Approach**: Copy official files to `.light/supabase/`, customize via environment variables
+  - **Benefits**: Always compatible with official Supabase, all init scripts included, simpler codebase
+  - **Version Pinning**: Bundle specific Supabase release with each Lightstack release for stability
 - **Remote Deployment (`light deploy`)**: Same stack on remote server
 - **Configuration**: Traefik file provider for dev, Docker provider for production
 - **Routing**: SSL domains map to Supabase services
