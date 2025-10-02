@@ -6,6 +6,7 @@ import { confirm } from '@inquirer/prompts';
 import { setupMkcert, generateTraefikTlsConfig } from '../utils/mkcert.js';
 import { getProjectConfig, type ServiceConfig } from '../utils/config.js';
 import { generateSupabaseStack, generateKongConfig, generateSupabaseEnvTemplate, generateSupabaseSecrets } from '../utils/supabase-stack.js';
+import { getSupabasePorts } from '../utils/supabase-config.js';
 
 interface UpOptions {
   env?: string;
@@ -171,8 +172,9 @@ export async function upCommand(options: UpOptions = {}) {
     if (env === 'development') {
       const detectedServices = detectBaaSServices();
       if (detectedServices.includes('Supabase')) {
-        console.log(chalk.green('  ✓'), `${'https://api.lvh.me'.padEnd(25)} → localhost:54321`);
-        console.log(chalk.green('  ✓'), `${'https://studio.lvh.me'.padEnd(25)} → localhost:54323`);
+        const supabasePorts = getSupabasePorts();
+        console.log(chalk.green('  ✓'), `${'https://api.lvh.me'.padEnd(25)} → localhost:${supabasePorts.api}`);
+        console.log(chalk.green('  ✓'), `${'https://studio.lvh.me'.padEnd(25)} → localhost:${supabasePorts.studio}`);
       }
     } else {
       // For production environments, show self-hosted Supabase URLs
@@ -412,6 +414,8 @@ function generateTraefikDynamicConfig(appServices: ServiceConfig[], baasServices
   // Add routes for BaaS services
   baasServices.forEach(service => {
     if (service === 'Supabase') {
+      const supabasePorts = getSupabasePorts();
+
       // Supabase API
       config.http.routers['supabase-api'] = {
         rule: 'Host(`api.lvh.me`)',
@@ -420,7 +424,7 @@ function generateTraefikDynamicConfig(appServices: ServiceConfig[], baasServices
       };
       config.http.services['supabase-api'] = {
         loadBalancer: {
-          servers: [{ url: 'http://host.docker.internal:54321' }]
+          servers: [{ url: `http://host.docker.internal:${supabasePorts.api}` }]
         }
       };
 
@@ -432,7 +436,7 @@ function generateTraefikDynamicConfig(appServices: ServiceConfig[], baasServices
       };
       config.http.services['supabase-studio'] = {
         loadBalancer: {
-          servers: [{ url: 'http://host.docker.internal:54323' }]
+          servers: [{ url: `http://host.docker.internal:${supabasePorts.studio}` }]
         }
       };
     }

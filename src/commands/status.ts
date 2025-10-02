@@ -2,6 +2,7 @@ import { existsSync } from 'fs';
 import { execSync } from 'child_process';
 import chalk from 'chalk';
 import { loadProjectConfig } from '../utils/config.js';
+import { getSupabasePorts } from '../utils/supabase-config.js';
 
 interface StatusOptions {
   format?: 'table' | 'json';
@@ -149,9 +150,11 @@ function checkBaaSServices(): ServiceStatus[] {
 
   // Check if Supabase is running
   if (existsSync('supabase/config.toml')) {
+    const supabasePorts = getSupabasePorts();
+
     try {
       // Check if Supabase is running by testing the health endpoint
-      execSync('curl -s -o /dev/null -w "%{http_code}" http://localhost:54321/rest/v1/', {
+      execSync(`curl -s -o /dev/null -w "%{http_code}" http://localhost:${supabasePorts.api}/rest/v1/`, {
         stdio: 'pipe',
         encoding: 'utf-8'
       });
@@ -160,13 +163,13 @@ function checkBaaSServices(): ServiceStatus[] {
         {
           name: 'supabase-api',
           status: 'running',
-          port: '54321',
+          port: supabasePorts.api.toString(),
           url: 'https://api.lvh.me'
         },
         {
           name: 'supabase-studio',
           status: 'running',
-          port: '54323',
+          port: supabasePorts.studio.toString(),
           url: 'https://studio.lvh.me'
         }
       );
@@ -175,7 +178,7 @@ function checkBaaSServices(): ServiceStatus[] {
         {
           name: 'supabase',
           status: 'stopped',
-          port: '54321'
+          port: supabasePorts.api.toString()
         }
       );
     }

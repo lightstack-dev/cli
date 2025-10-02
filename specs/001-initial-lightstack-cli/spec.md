@@ -65,7 +65,7 @@ As a developer working with Supabase, I need a CLI tool that enables me to self-
 
 ### Edge Cases
 - **Docker not available**: System shows clear error message with Docker installation instructions and exits gracefully
-- **Port conflicts**: System detects occupied ports and suggests alternatives or allows user to specify different ports
+- **Port conflicts**: System detects user-configured ports from Supabase config.toml and automatically uses those instead of defaults, preventing conflicts when users have customized their Supabase ports
 - **Partial service failures during orchestration**: System attempts graceful shutdown of started services and provides detailed failure diagnostics
 - **SSL certificate generation fails**: System falls back to self-signed certificates in development with warning, fails deployment in production with clear error
 - **Conflicting configurations**: Lightstack configuration takes precedence with warning about overrides displayed to user
@@ -83,7 +83,7 @@ As a developer working with Supabase, I need a CLI tool that enables me to self-
 - **FR-003**: ✅ System MUST orchestrate multiple services (frontend, Supabase stack, database) in correct dependency order
 - **FR-004**: ⏳ System MUST deploy to any Docker-compatible VPS platform (local testing implemented)
 - **FR-005**: ✅ System MUST NOT wrap Supabase CLI - developers use Supabase CLI directly for migrations and management
-- **FR-006**: ✅ System MUST auto-detect and use smart defaults for common configurations (port numbers, service names, database connections)
+- **FR-006**: ✅ System MUST auto-detect and use smart defaults for common configurations (port numbers from Supabase config.toml, service names, database connections)
 - **FR-007**: ✅ System MUST manage secrets securely between environments
 - **FR-008**: ⏳ System MUST provide zero-downtime deployments
 - **FR-009**: ✅ System MUST perform health checks after deployment
