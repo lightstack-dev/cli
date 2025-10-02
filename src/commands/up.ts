@@ -101,8 +101,8 @@ export async function upCommand(options: UpOptions = {}) {
 
       if (allHealthy) {
         console.log(chalk.green('✅'), 'Lightstack router is already running');
-        const restartCmd = env === 'development' ? 'light restart' : `light restart ${env}`;
-        console.log(chalk.blue('ℹ'), 'Use', chalk.cyan(restartCmd), 'to restart router');
+        // Show same helpful output as when starting fresh
+        showRouterStatus(projectConfig, env);
         return;
       } else {
         console.log(chalk.yellow('⚠️'), 'Some containers are unhealthy, restarting...');
@@ -161,40 +161,7 @@ export async function upCommand(options: UpOptions = {}) {
       runSupabaseMigrations(projectConfig.name, env);
     }
 
-    console.log('\n' + chalk.bold('Router ready:'));
-
-    // Show configured services
-    projectConfig.services.forEach(service => {
-      const url = `https://${service.name}.lvh.me`;
-      const localUrl = `localhost:${service.port}`;
-      console.log(chalk.green('  ✓'), `${url.padEnd(25)} → ${localUrl}`);
-    });
-
-    // Show BaaS URLs
-    if (env === 'development') {
-      const detectedServices = detectBaaSServices();
-      if (detectedServices.includes('Supabase')) {
-        const supabasePorts = getSupabasePorts();
-        console.log(chalk.green('  ✓'), `${'https://api.lvh.me'.padEnd(25)} → localhost:${supabasePorts.api}`);
-        console.log(chalk.green('  ✓'), `${'https://studio.lvh.me'.padEnd(25)} → localhost:${supabasePorts.studio}`);
-      }
-    } else {
-      // For production environments, show self-hosted Supabase URLs
-      const deployment = projectConfig.deployments?.find(d => d.name === env);
-      const domain = deployment?.domain || 'local.lightstack.dev';
-      console.log(chalk.green('  ✓'), `https://api.${domain}`.padEnd(35) + ' → Kong API Gateway');
-      console.log(chalk.green('  ✓'), `https://studio.${domain}`.padEnd(35) + ' → Supabase Studio');
-    }
-
-    console.log(chalk.green('  ✓'), `${'https://router.lvh.me'.padEnd(25)} → Traefik routing`);
-
-    console.log('\n' + chalk.bold('Start your app with one of:'));
-    console.log('  ' + chalk.cyan('npm run dev'));
-    console.log('  ' + chalk.cyan('pnpm dev'));
-    console.log('  ' + chalk.cyan('yarn dev'));
-    console.log('  ' + chalk.cyan('bun dev'));
-
-    console.log('\n' + chalk.gray('Stop router: ') + chalk.cyan('light down'));
+    showRouterStatus(projectConfig, env);
 
   } catch (error) {
     console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : 'Unknown error');
@@ -623,4 +590,43 @@ function runSupabaseMigrations(_projectName: string, _env: string): void {
     console.log(chalk.cyan(`  supabase db push --db-url "postgresql://postgres:PASSWORD@localhost:5432/postgres"`));
     console.log(chalk.gray('  (Replace PASSWORD with the value from .light/.env.supabase)\n'));
   }
+}
+
+function showRouterStatus(projectConfig: ReturnType<typeof getProjectConfig>, env: string): void {
+  console.log('\n' + chalk.bold('Router ready:'));
+
+  // Show configured services
+  projectConfig.services.forEach(service => {
+    const url = `https://${service.name}.lvh.me`;
+    const localUrl = `localhost:${service.port}`;
+    console.log(chalk.green('  ✓'), `${url.padEnd(25)} → ${localUrl}`);
+  });
+
+  // Show BaaS URLs
+  if (env === 'development') {
+    const detectedServices = detectBaaSServices();
+    if (detectedServices.includes('Supabase')) {
+      const supabasePorts = getSupabasePorts();
+      console.log(chalk.green('  ✓'), `${'https://api.lvh.me'.padEnd(25)} → localhost:${supabasePorts.api}`);
+      console.log(chalk.green('  ✓'), `${'https://studio.lvh.me'.padEnd(25)} → localhost:${supabasePorts.studio}`);
+    }
+  } else {
+    // For production environments, show self-hosted Supabase URLs
+    const deployment = projectConfig.deployments?.find(d => d.name === env);
+    const domain = deployment?.domain || 'local.lightstack.dev';
+    console.log(chalk.green('  ✓'), `https://api.${domain}`.padEnd(35) + ' → Kong API Gateway');
+    console.log(chalk.green('  ✓'), `https://studio.${domain}`.padEnd(35) + ' → Supabase Studio');
+  }
+
+  console.log(chalk.green('  ✓'), `${'https://router.lvh.me'.padEnd(25)} → Traefik routing`);
+
+  console.log('\n' + chalk.bold('Start your app with one of:'));
+  console.log('  ' + chalk.cyan('npm run dev'));
+  console.log('  ' + chalk.cyan('pnpm dev'));
+  console.log('  ' + chalk.cyan('yarn dev'));
+  console.log('  ' + chalk.cyan('bun dev'));
+
+  console.log('\n' + chalk.bold('Manage router:'));
+  console.log('  ' + chalk.gray('Restart: ') + chalk.cyan('light restart'));
+  console.log('  ' + chalk.gray('Stop:    ') + chalk.cyan('light down'));
 }
