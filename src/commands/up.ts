@@ -100,7 +100,8 @@ export async function upCommand(options: UpOptions = {}) {
 
       if (allHealthy) {
         console.log(chalk.green('✅'), 'Stack is already running and healthy');
-        console.log(chalk.blue('ℹ'), 'Use', chalk.cyan('light down && light up ' + env), 'to restart');
+        const restartCmd = env === 'development' ? 'light restart' : `light restart ${env}`;
+        console.log(chalk.blue('ℹ'), 'Use', chalk.cyan(restartCmd), 'to restart');
         return;
       } else {
         console.log(chalk.yellow('⚠️'), 'Some containers are unhealthy, restarting...');
@@ -248,14 +249,8 @@ function checkEnvironment(env: string) {
         }
       }
 
-      // Check for common application variables
-      const commonVars = ['DATABASE_URL', 'SUPABASE_URL', 'API_KEY'];
-      const missingVars = commonVars.filter(v => !envVars[v]);
-
-      if (missingVars.length > 0) {
-        // This is just informational, not an error
-        console.log(chalk.yellow('ℹ'), `Note: Some common variables not found: ${missingVars.join(', ')}`);
-      }
+      // Removed overly broad common variable checks
+      // Users will get errors from their actual services if critical vars are missing
     } catch (error) {
       warnings.push('Could not parse .env file. Check for syntax errors.');
     }
@@ -371,8 +366,6 @@ function setupLocalSsl(): void {
 
     // Write TLS configuration
     writeFileSync('.light/traefik/tls.yml', tlsConfig);
-
-    console.log(chalk.green('✅'), 'SSL certificates configured for local development');
   } else {
     console.log(chalk.yellow('⚠️'), 'Running without SSL. Install mkcert for HTTPS support.');
   }

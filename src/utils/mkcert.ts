@@ -107,7 +107,7 @@ export function generateCertificates(domains: string[] = ['*.lvh.me', 'lvh.me'])
 
   // Check if certificates already exist
   if (existsSync(certPath) && existsSync(keyPath)) {
-    console.log(chalk.blue('🔐'), 'Using existing SSL certificates');
+    // Silent - certificates already exist
     result.certsGenerated = true;
     result.certPath = certPath;
     result.keyPath = keyPath;
@@ -127,8 +127,6 @@ export function generateCertificates(domains: string[] = ['*.lvh.me', 'lvh.me'])
     });
 
     spinner.succeed('SSL certificates generated');
-    console.log(chalk.gray(`  Certificate: ${certPath}`));
-    console.log(chalk.gray(`  Key:         ${keyPath}`));
 
     result.certsGenerated = true;
     result.certPath = certPath;
@@ -149,17 +147,9 @@ export function generateCertificates(domains: string[] = ['*.lvh.me', 'lvh.me'])
  * Setup mkcert for the project
  */
 export function setupMkcert(): MkcertResult {
-  console.log(chalk.blue('🔒'), 'Setting up local SSL certificates...');
-
   const result = generateCertificates();
 
-  if (result.certsGenerated) {
-    console.log(chalk.green('✅'), 'SSL setup complete');
-    console.log('\nLocal domains will be available at:');
-    console.log('  https://app.lvh.me');
-    console.log('  https://proxy.lvh.me');
-    console.log('  https://api.lvh.me (if using Supabase)');
-  } else if (!result.installed) {
+  if (!result.installed) {
     console.log(chalk.yellow('⚠️'), 'SSL certificates not configured');
     console.log('HTTPS will not be available until mkcert is installed');
   }

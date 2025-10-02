@@ -107,6 +107,13 @@ program.command('start').description('Alias for "up"').action(async () => {
 program.command('stop').description('Alias for "down"').action(() => {
   downCommand({ volumes: false });
 });
+program.command('restart')
+  .description('Restart the stack (stop and start)')
+  .argument('[environment]', 'Target environment (development, production, etc.)', 'development')
+  .action(async (environment: string) => {
+    downCommand({ volumes: false });
+    await upCommand({ env: environment, detach: true });
+  });
 program.command('ps').description('Alias for "status"').action(() => {
   statusCommand({ format: 'table' });
 });
@@ -118,6 +125,12 @@ try {
   await program.parseAsync(process.argv);
 } catch (error) {
   if (error instanceof Error) {
+    // Commander throws errors for --version and --help with exitOverride()
+    // These have specific codes we can check
+    if ('code' in error && (error.code === 'commander.version' || error.code === 'commander.helpDisplayed')) {
+      // Normal exit for version/help, not an error
+      process.exit(0);
+    }
     console.error(chalk.red('Error:'), error.message);
     process.exit(1);
   }
