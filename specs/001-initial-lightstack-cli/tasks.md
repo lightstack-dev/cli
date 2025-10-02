@@ -288,3 +288,169 @@ Task: "Test network failure recovery in deployment in tests/integration/test_net
 - [x] Documentation site deployment included (T070-T077)
 - [x] NFR-001 satisfied: docs at https://cli.lightstack.dev
 - [x] All services defined in plan have implementation tasks
+
+---
+
+## Phase 4: Production Stack Refactoring (Current Priority)
+
+### P0: Critical Fixes - Supabase Stack Architecture Change
+
+**CONTEXT**: Container restart loops discovered during testing. Root cause: We were hand-crafting Supabase docker-compose instead of using official Supabase stack. Decision: Switch to bundling and using official Supabase docker files.
+
+**Architecture Change**:
+- ❌ OLD: Hand-craft `generateSupabaseStack()` → custom Docker Compose YAML
+- ✅ NEW: Bundle official Supabase docker files → copy and customize
+
+**Benefits**:
+- Always compatible with official Supabase
+- All init scripts and schemas automatically included
+- Bug fixes from Supabase team flow through
+- Much simpler codebase
+
+### Supabase Stack Tasks (Blocking Production Testing)
+
+- [ ] T089 **[CRITICAL]** Refactor production stack generation to use official Supabase files
+  - Copy `templates/supabase/docker-compose.yml` → `.light/supabase/docker-compose.yml`
+  - Copy `templates/supabase/volumes/` → `.light/supabase/volumes/`
+  - Create `.light/supabase/.env` mapping our variables to Supabase format
+  - Update docker compose command to use official stack
+  - **Files**: `src/commands/up.ts`, `src/utils/supabase-stack.ts`
+
+- [ ] T090 Update environment variable mapping for Supabase compatibility
+  - Map `PRODUCTION_POSTGRES_PASSWORD` → `POSTGRES_PASSWORD`
+  - Map `PRODUCTION_JWT_SECRET` → `JWT_SECRET`
+  - Map `PRODUCTION_ANON_KEY` → `ANON_KEY`
+  - Map `PRODUCTION_SERVICE_KEY` → `SERVICE_ROLE_KEY`
+  - **File**: `src/commands/up.ts` (generateProductionStack function)
+
+- [ ] T091 Remove custom Supabase stack generation code
+  - Delete or simplify `generateSupabaseStack()` in `src/utils/supabase-stack.ts`
+  - Keep only secrets generation functions
+  - Update tests to match new architecture
+  - **File**: `src/utils/supabase-stack.ts`
+
+- [ ] T092 Test complete production stack with official Supabase files
+  - Run `light up production` with real Supabase project
+  - Verify all 9 containers start successfully (no restart loops)
+  - Verify database migrations apply correctly
+  - Verify Studio, API, and Auth are accessible
+  - **Testing**: Manual verification in playground repo
+
+### P0: Domain Configuration Fixes
+
+- [ ] T093 Use provided domain instead of hardcoded local.lightstack.dev
+  - Read domain from deployment config (`app.yourdomain.com`)
+  - Default to `local.lightstack.dev` only if no domain provided
+  - **File**: `src/commands/up.ts` (line 476)
+
+- [ ] T094 Add subdomain prompts to `light env add` command
+  - Prompt for app domain (main domain)
+  - Prompt for API subdomain (default: `api.{app-domain}`)
+  - Prompt for Studio subdomain (default: `studio.{app-domain}`)
+  - Store all three in deployment config
+  - **File**: `src/commands/env.ts`
+
+- [ ] T095 Disable Traefik dashboard in production mode
+  - Only expose dashboard in development environment
+  - Remove dashboard route from production Traefik config
+  - **File**: `src/commands/up.ts` (generateProductionTraefikConfig function)
+
+### P1: High Priority UX Improvements
+
+- [ ] T096 Move ACME email prompt from init to env add command
+  - Remove ACME email prompt from `light init`
+  - Add ACME email prompt to `light env add` (when SSL enabled)
+  - Update user config management accordingly
+  - **Files**: `src/commands/init.ts`, `src/commands/env.ts`
+
+- [ ] T097 Add confirmation prompt to reuse existing ACME email
+  - Check for existing ACME email in user config
+  - Prompt: "Use existing email (x@y.com) or provide new one?"
+  - Allow updating email if user chooses
+  - **File**: `src/commands/env.ts`
+
+- [ ] T098 Move Dockerfile to .light/ directory
+  - Generate Dockerfile at `.light/Dockerfile` instead of root
+  - Update .gitignore to exclude `.light/Dockerfile`
+  - **File**: `src/commands/init.ts`
+
+- [ ] T099 Handle missing SMTP environment variables gracefully
+  - Suppress Docker Compose warnings for optional SMTP vars
+  - Add default values for SMTP_USER and SMTP_PASS
+  - **File**: `src/utils/supabase-stack.ts` or env mapping
+
+### P2: Medium Priority Polish
+
+- [ ] T100 Simplify init command output
+  - Remove file generation details ("Docker Compose files generated", etc.)
+  - Keep only essential confirmation messages
+  - **File**: `src/commands/init.ts`
+
+- [ ] T101 Update init next steps to emphasize dev/prod parity value
+  - Highlight complete Supabase stack deployment
+  - Show local production testing capability
+  - Remove generic "other BaaS services" messaging
+  - **File**: `src/commands/init.ts`
+
+- [ ] T102 Standardize command highlighting (cyan color)
+  - Use consistent `chalk.cyan()` for all command examples
+  - Apply to: init output, up output, env output
+  - Apply to migration command suggestion
+  - **Files**: `src/commands/init.ts`, `src/commands/up.ts`, `src/commands/env.ts`
+
+- [ ] T103 Align domain list between init and up command outputs
+  - Show same domains in both commands
+  - Consistent formatting and order
+  - **Files**: `src/commands/init.ts`, `src/commands/up.ts`
+
+- [ ] T104 Group SSL certificate output in up command
+  - Move certificate output away from Supabase detection
+  - Group all SSL setup together
+  - **File**: `src/commands/up.ts`
+
+- [ ] T105 Clarify or remove "Supabase instance detected" message
+  - Consider removing if not adding value at that point
+  - Or make it actionable with next steps
+  - **File**: `src/commands/up.ts`
+
+- [ ] T106 Remove verbose/quiet flags or implement them
+  - Currently defined but not implemented
+  - Decision: Remove for now (YAGNI)
+  - **File**: `src/cli.ts`
+
+- [ ] T107 Update up command description to emphasize local infrastructure
+  - Remove "production" from description
+  - Emphasize local aspect and environment flexibility
+  - **File**: `src/cli.ts`
+
+- [ ] T108 Fix "Error: (outputHelp)" when running light with no args
+  - Handle no arguments gracefully
+  - Show help without error message
+  - **File**: `src/cli.ts`
+
+### P3: Low Priority Nice-to-Have
+
+- [ ] T109 Remove noise from Supabase stack generation output
+  - Remove "Generating self-hosted Supabase stack..." message
+  - Keep only essential status updates
+  - **File**: `src/commands/up.ts`
+
+## Implementation Notes (Phase 4)
+
+### Official Supabase Stack Integration
+**Date**: 2025-10-02
+**Status**: ✅ Files bundled, ⏳ Integration pending
+**Location**: `templates/supabase/`
+**Version**: Commit 75962742048c (2025-10-02)
+
+**What's Bundled**:
+- `docker-compose.yml` - Complete official Supabase stack
+- `volumes/db/*.sql` - Database initialization scripts (roles, JWT, webhooks, etc.)
+- `volumes/api/kong.yml` - Kong API Gateway configuration
+- `.env.example` - Official environment variable template
+
+**Integration Strategy**:
+1. Copy official files from `templates/supabase/` to `.light/supabase/`
+2. Create env mapping: `PRODUCTION_*` → Supabase expected format
+3. Use `docker compose -f .light/supabase/docker-compose.yml --env-file .light/supabase/.env up`
+4. No custom YAML generation - leverage official stack entirely

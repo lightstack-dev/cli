@@ -137,6 +137,7 @@ services:
       db:
         condition: service_healthy
     environment:
+      APP_NAME: ${projectName}
       PORT: 4000
       DB_HOST: db
       DB_PORT: 5432
@@ -168,7 +169,7 @@ services:
       ANON_KEY: \${${envPrefix}_ANON_KEY}
       SERVICE_KEY: \${${envPrefix}_SERVICE_KEY}
       AUTH_JWT_SECRET: \${${envPrefix}_JWT_SECRET}
-      DATABASE_URL: postgres://postgres:\${${envPrefix}_POSTGRES_PASSWORD}@db:5432/postgres
+      DATABASE_URL: postgres://postgres:\${${envPrefix}_POSTGRES_PASSWORD}@db:5432/postgres?search_path=storage
       PGRST_JWT_SECRET: \${${envPrefix}_JWT_SECRET}
       POSTGREST_URL: http://rest:3000
       FILE_SIZE_LIMIT: 52428800
