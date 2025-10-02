@@ -543,9 +543,9 @@ function checkContainerStatus(projectName: string, _env: string): ContainerStatu
   };
 
   try {
-    // Get container status for this project
+    // Get container status for this project (using Docker Compose project label)
     const output = execSync(
-      `docker ps -a --filter "name=${projectName}" --format "{{.Names}}\t{{.Status}}"`,
+      `docker ps -a --filter "label=com.docker.compose.project=${projectName}" --format "{{.Names}}\t{{.Status}}"`,
       { encoding: 'utf-8' }
     );
 
