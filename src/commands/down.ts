@@ -27,8 +27,7 @@ export function downCommand(options: DownOptions = {}) {
 
     // Simple approach: Just use project name to stop all containers
     // Docker Compose doesn't need the exact compose files to stop containers
-    // Prefix with 'lightstack-' to match the project name used in up command
-    const projectArg = `--project-name lightstack-${projectConfig.name}`;
+    const projectArg = `--project-name ${projectConfig.name}`;
     const volumesFlag = removeVolumes ? '-v' : '';
     const dockerCmd = `docker compose ${projectArg} down ${volumesFlag}`.trim();
 

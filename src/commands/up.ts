@@ -93,8 +93,8 @@ export async function upCommand(options: UpOptions = {}) {
       generateProductionStack(projectConfig, env);
     }
 
-    // Check if stack is already running
-    const existingStatus = checkContainerStatus(`lightstack-${projectConfig.name}`, env);
+    // Check if router is already running
+    const existingStatus = checkRouterStatus(projectConfig.name);
     if (existingStatus.hasRunningContainers) {
       // Check if all expected containers are healthy
       const allHealthy = existingStatus.running.length > 0 && existingStatus.failed.length === 0 && existingStatus.created.length === 0;
@@ -123,7 +123,7 @@ export async function upCommand(options: UpOptions = {}) {
       console.log(chalk.blue('ℹ'), 'Checking container status...\n');
 
       // Check which containers are actually running
-      const status = checkContainerStatus(`lightstack-${projectConfig.name}`, env);
+      const status = checkRouterStatus(projectConfig.name);
 
       if (status.hasRunningContainers) {
         console.log(chalk.yellow('⚠️'), 'Some containers started successfully:');
@@ -190,6 +190,7 @@ export async function upCommand(options: UpOptions = {}) {
 
     console.log('\n' + chalk.bold('Start your app with one of:'));
     console.log('  ' + chalk.cyan('npm run dev'));
+    console.log('  ' + chalk.cyan('pnpm dev'));
     console.log('  ' + chalk.cyan('yarn dev'));
     console.log('  ' + chalk.cyan('bun dev'));
 
@@ -299,8 +300,7 @@ function buildDockerCommand(
   options: { detach: boolean; projectName: string }
 ): string {
   const fileArgs = composeFiles.map(f => `-f ${f}`).join(' ');
-  // Prefix with 'lightstack-' to avoid conflicts with Supabase CLI or other tools
-  const projectArg = `--project-name lightstack-${options.projectName}`;
+  const projectArg = `--project-name ${options.projectName}`;
   const envFileArg = existsSync('.env') ? '--env-file ./.env' : '';
   const detachFlag = options.detach ? '-d' : '';
 
@@ -540,7 +540,7 @@ interface ContainerStatus {
   created: string[];
 }
 
-function checkContainerStatus(projectName: string, _env: string): ContainerStatus {
+function checkRouterStatus(projectName: string): ContainerStatus {
   const status: ContainerStatus = {
     hasRunningContainers: false,
     running: [],
@@ -549,9 +549,11 @@ function checkContainerStatus(projectName: string, _env: string): ContainerStatu
   };
 
   try {
-    // Get container status for this project (using Docker Compose project label)
+    // Check specifically for our router container (named ${projectName}-router)
+    // This avoids conflicts with Supabase CLI containers in the same project
+    const containerName = `${projectName}-router`;
     const output = execSync(
-      `docker ps -a --filter "label=com.docker.compose.project=${projectName}" --format "{{.Names}}\t{{.Status}}"`,
+      `docker ps -a --filter "name=^${containerName}$" --format "{{.Names}}\t{{.Status}}"`,
       { encoding: 'utf-8' }
     );
 
