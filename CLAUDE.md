@@ -169,6 +169,85 @@ light deploy production --tag v1.0.0
 4. **Fail Fast, Fail Clearly**: Validate prerequisites; provide actionable errors
 5. **Progressive Disclosure**: Smart defaults; allow overrides
 
+### Development Workflow (CRITICAL)
+
+**⚠️ IMPORTANT**: Always follow spec-driven and test-driven development. The natural impulse is to dive straight into code - resist this and channel it properly.
+
+#### Spec-Driven Development (Required)
+
+**Before writing ANY implementation code:**
+
+1. **Read the specs first** - All features have spec documents in `specs/001-*/`:
+   - `spec.md` - Feature requirements and user stories
+   - `plan.md` - Implementation plan and architecture decisions
+   - `research.md` - Technical decisions and rationale
+   - `data-model.md` - Entities and relationships
+   - `contracts/cli-commands.md` - Command behavior contracts
+   - `quickstart.md` - End-to-end user journey
+
+2. **Update specs BEFORE code** - When requirements change:
+   - Update spec documents first
+   - Get alignment on approach
+   - Then implement to match updated specs
+
+3. **Spec-first prevents "wild fixing"** - Without specs, we end up fixing problems reactively without a coherent plan. Specs provide the north star.
+
+**Example of correct workflow:**
+```
+User: "The production stack isn't starting"
+❌ BAD: Immediately start editing up.ts to fix issues
+✅ GOOD:
+  1. "Let me read the plan.md and cli-commands.md specs first"
+  2. "Now I understand the intended architecture"
+  3. "The implementation diverged from spec here... let me fix it"
+```
+
+#### Test-Driven Development (Required)
+
+**Tests are not optional** - They run in GitHub Actions and block PRs when failing.
+
+1. **Tests must stay green** - All tests must pass before committing:
+   ```bash
+   bun test              # Run all tests
+   bun run typecheck     # TypeScript validation
+   bun run lint          # ESLint validation
+   ```
+
+2. **Update tests with implementation** - When changing behavior:
+   - Update or add tests to match new behavior
+   - Never leave tests broken "for later"
+   - Tests document expected behavior
+
+3. **Test philosophy** - We test what we own:
+   - ✅ DO test: "Did we generate the correct Docker Compose YAML?"
+   - ✅ DO test: "Did we build the correct docker compose command?"
+   - ❌ DON'T test: "Does Docker actually start?" (That's Docker's job)
+   - See **Testing Strategy** section below for details
+
+**Example of correct workflow:**
+```
+After implementing new feature:
+1. Run: bun test
+2. If tests fail: Fix tests OR fix implementation
+3. Commit only when tests pass
+4. GitHub Actions will verify on PR
+```
+
+#### Pre-Commit Checklist
+
+Before every commit, verify:
+- [ ] All specs updated if behavior changed
+- [ ] `bun test` passes (all tests green)
+- [ ] `bun run typecheck` passes (no TypeScript errors)
+- [ ] `bun run lint` passes (no ESLint errors)
+- [ ] Implementation matches spec behavior
+
+**Why this matters:**
+- Specs prevent scope creep and "wild fixing"
+- Tests catch regressions immediately
+- GitHub Actions enforces quality gates
+- Clear specs = easier collaboration
+
 ### Error Handling Pattern
 
 ```
