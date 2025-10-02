@@ -7,6 +7,7 @@ import { setupMkcert, generateTraefikTlsConfig } from '../utils/mkcert.js';
 import { getProjectConfig, type ServiceConfig } from '../utils/config.js';
 import { generateSupabaseStack, generateKongConfig, generateSupabaseSecrets } from '../utils/supabase-stack.js';
 import { getSupabasePorts } from '../utils/supabase-config.js';
+import { getAcmeEmail } from '../utils/user-config.js';
 
 interface UpOptions {
   env?: string;
@@ -127,17 +128,12 @@ export async function upCommand(options: UpOptions = {}) {
       }
 
       // For non-development environments, generate full Supabase stack
-      // Get SSL email from .env (environment-specific key preferred)
-      const envKey = `${env.toUpperCase()}_ACME_EMAIL`;
-      let sslEmail: string | undefined;
-      if (existsSync('.env')) {
-        const envContent = readFileSync('.env', 'utf-8');
-        const envVars: Record<string, string> = {};
-        envContent.split('\n').forEach(line => {
-          const [key, ...valueParts] = line.split('=');
-          if (key?.trim()) envVars[key.trim()] = valueParts.join('=').trim();
-        });
-        sslEmail = envVars[envKey] || envVars.ACME_EMAIL;
+      // Get ACME email from user config (stored in ~/.lightstack/config.yml)
+      const sslEmail = getAcmeEmail();
+      if (!sslEmail) {
+        console.log(chalk.yellow('⚠️'), 'ACME email not configured');
+        console.log(chalk.blue('ℹ'), 'Run', chalk.cyan('light init'), 'to configure ACME email for Let\'s Encrypt SSL');
+        console.log('');
       }
 
       generateProductionStack(projectConfig, env, sslEmail);
@@ -145,21 +141,26 @@ export async function upCommand(options: UpOptions = {}) {
 
     // Check if infrastructure is already running
     const composeFiles = getComposeFiles(env);
-    const expectedContainers = getExpectedContainerCount(composeFiles);
+    const expectedContainers = getExpectedContainers(projectConfig.name, composeFiles);
     const existingStatus = checkInfrastructureStatus(projectConfig.name, env);
 
     if (existingStatus.hasRunningContainers) {
-      // Check if all expected containers are running and healthy
-      const allExpectedRunning = existingStatus.running.length >= expectedContainers;
-      const allHealthy = existingStatus.failed.length === 0 && existingStatus.created.length === 0;
+      // Validate that all expected containers are running
+      const validation = validateContainerStatus(expectedContainers, existingStatus);
 
-      if (allExpectedRunning && allHealthy) {
-        console.log(chalk.green('✅'), 'Lightstack infrastructure is already running');
+      if (validation.valid) {
+        console.log(chalk.green('✅'), `Lightstack infrastructure is already running (${env})`);
         // Show same helpful output as when starting fresh
         showRouterStatus(projectConfig, env);
         return;
       } else {
-        console.log(chalk.yellow('⚠️'), 'Some containers are missing or unhealthy, restarting...');
+        console.log(chalk.yellow('⚠️'), 'Infrastructure is incomplete, restarting...');
+        if (validation.missing.length > 0) {
+          console.log(chalk.gray('  Missing:'), validation.missing.join(', '));
+        }
+        if (validation.failed.length > 0) {
+          console.log(chalk.gray('  Failed:'), validation.failed.join(', '));
+        }
       }
     }
 
@@ -611,19 +612,52 @@ function checkInfrastructureStatus(projectName: string, env: string): ContainerS
   return status;
 }
 
-function getExpectedContainerCount(composeFiles: string[]): number {
-  // Rough estimation based on compose files
-  // - Base file: 1 (router)
-  // - Supabase file: 8 (db, kong, auth, rest, realtime, storage, studio, meta)
-  // - Env-specific: 0 (just overrides)
+/**
+ * Get expected container names based on environment and compose files
+ */
+function getExpectedContainers(projectName: string, composeFiles: string[]): string[] {
+  const containers = [
+    `${projectName}-router`  // Always expect router
+  ];
 
-  let count = 1; // Always have router
-
+  // If Supabase stack is included, add all Supabase service containers
   if (composeFiles.some(f => f.includes('supabase'))) {
-    count += 8; // Supabase stack
+    containers.push(
+      `${projectName}-db`,         // PostgreSQL
+      `${projectName}-kong`,       // Kong API Gateway
+      `${projectName}-auth`,       // GoTrue Auth
+      `${projectName}-rest`,       // PostgREST
+      `${projectName}-realtime`,   // Realtime
+      `${projectName}-storage`,    // Storage
+      `${projectName}-studio`,     // Studio UI
+      `${projectName}-meta`        // Meta service
+    );
   }
 
-  return count;
+  return containers;
+}
+
+/**
+ * Validate that all expected containers are running
+ */
+function validateContainerStatus(
+  expectedContainers: string[],
+  actualStatus: ContainerStatus
+): { valid: boolean; missing: string[]; failed: string[] } {
+  const runningNames = actualStatus.running.map(r => r.split(' ')[0]);
+  const failedNames = actualStatus.failed.map(f => f.split(' ')[0]);
+
+  const missing = expectedContainers.filter(name =>
+    !runningNames.includes(name) && !failedNames.includes(name)
+  );
+
+  const failed = expectedContainers.filter(name => failedNames.includes(name));
+
+  return {
+    valid: missing.length === 0 && failed.length === 0,
+    missing,
+    failed
+  };
 }
 
 function runSupabaseMigrations(_projectName: string, env: string): void {
