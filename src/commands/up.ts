@@ -5,7 +5,7 @@ import yaml from 'js-yaml';
 import { confirm } from '@inquirer/prompts';
 import { setupMkcert, generateTraefikTlsConfig } from '../utils/mkcert.js';
 import { getProjectConfig, type ServiceConfig } from '../utils/config.js';
-import { generateSupabaseStack, generateKongConfig, generateSupabaseSecrets } from '../utils/supabase-stack.js';
+import { generateSupabaseSecrets, createSupabaseEnvFile } from '../utils/supabase-stack.js';
 import { getSupabasePorts } from '../utils/supabase-config.js';
 import { getAcmeEmail } from '../utils/user-config.js';
 
@@ -136,7 +136,7 @@ export async function upCommand(options: UpOptions = {}) {
         console.log('');
       }
 
-      generateProductionStack(projectConfig, env, sslEmail);
+      await generateProductionStack(projectConfig, env, sslEmail);
     }
 
     // Check if infrastructure is already running
@@ -165,7 +165,7 @@ export async function upCommand(options: UpOptions = {}) {
     }
 
     // Build Docker Compose command
-    const dockerCmd = buildDockerCommand(composeFiles, { detach, projectName: projectConfig.name });
+    const dockerCmd = buildDockerCommand(composeFiles, { detach, projectName: projectConfig.name, env });
 
     console.log(chalk.blue('🚀'), 'Starting router...');
 
@@ -299,17 +299,17 @@ function checkEnvironment(env: string) {
 function getComposeFiles(env: string): string[] {
   const baseFile = '.light/docker-compose.yml';
   const envFile = `.light/docker-compose.${env}.yml`;
-  const supabaseFile = '.light/docker-compose.supabase.yml';
+  const supabaseOverridesFile = '.light/docker-compose.supabase-overrides.yml';
 
   const files = [baseFile];
 
-  // Add Supabase stack for non-development environments
-  if (env !== 'development' && existsSync(supabaseFile)) {
-    files.push(supabaseFile);
-  }
-
   if (existsSync(envFile)) {
     files.push(envFile);
+  }
+
+  // Add Supabase overrides file if it exists (for production with Supabase)
+  if (env !== 'development' && existsSync(supabaseOverridesFile)) {
+    files.push(supabaseOverridesFile);
   }
 
   return files;
@@ -317,11 +317,25 @@ function getComposeFiles(env: string): string[] {
 
 function buildDockerCommand(
   composeFiles: string[],
-  options: { detach: boolean; projectName: string }
+  options: { detach: boolean; projectName: string; env: string }
 ): string {
   const fileArgs = composeFiles.map(f => `-f ${f}`).join(' ');
   const projectArg = `--project-name ${options.projectName}`;
-  const envFileArg = existsSync('.env') ? '--env-file ./.env' : '';
+
+  // Build env-file arguments
+  const envFileArgs: string[] = [];
+
+  // For production environments, load .light/.env first (Supabase vars)
+  if (options.env !== 'development' && existsSync('.light/.env')) {
+    envFileArgs.push('--env-file ./.light/.env');
+  }
+
+  // Then load user's .env (can override Supabase vars if needed)
+  if (existsSync('.env')) {
+    envFileArgs.push('--env-file ./.env');
+  }
+
+  const envFileArg = envFileArgs.join(' ');
   const detachFlag = options.detach ? '-d' : '';
 
   return `docker compose ${projectArg} ${fileArgs} ${envFileArg} up ${detachFlag}`.trim();
@@ -468,47 +482,62 @@ function generateTraefikDynamicConfig(appServices: ServiceConfig[], baasServices
   });
 }
 
-function generateProductionStack(projectConfig: ReturnType<typeof getProjectConfig>, env: string, sslEmail?: string) {
-  console.log(chalk.blue('🔧'), `Generating self-hosted Supabase stack for ${env}...`);
+async function generateProductionStack(projectConfig: ReturnType<typeof getProjectConfig>, env: string, _sslEmail?: string) {
+  console.log(chalk.blue('🔧'), `Preparing production environment for ${env}...`);
 
   // Get domain from deployment config
   const deployment = projectConfig.deployments?.find(d => d.name === env);
   const domain = deployment?.domain || 'local.lightstack.dev';
 
-  // Check if Supabase stack already exists
-  const supabaseComposePath = `.light/docker-compose.supabase.yml`;
+  // Ensure Supabase template files are bundled (copy if missing)
+  if (!existsSync('.light/supabase/docker-compose.yml')) {
+    console.log(chalk.blue('📦'), 'Bundling official Supabase stack...');
 
-  if (!existsSync(supabaseComposePath)) {
-    // Check if production secrets already exist in .env
-    const secrets = loadOrGenerateSecrets(env);
+    const path = await import('path');
+    const url = await import('url');
+    const files = await import('../utils/files.js');
 
-    // Generate Supabase stack (uses .env secrets via ${VAR} syntax)
-    const supabaseStack = generateSupabaseStack({
-      projectName: projectConfig.name,
-      domain,
-      environment: env,
-      sslEmail
-    });
+    // Get current module directory
+    const __filename = url.fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
 
-    writeFileSync(supabaseComposePath, supabaseStack);
+    const templateDir = path.join(__dirname, '..', '..', 'templates', 'supabase');
+    const targetDir = '.light/supabase';
 
-    // Generate Kong configuration
-    mkdirSync('.light/volumes/api', { recursive: true });
-    writeFileSync('.light/volumes/api/kong.yml', generateKongConfig());
+    files.copyDirectory(templateDir, targetDir);
+  }
 
-    if (secrets.generated) {
-      console.log(chalk.green('✅'), `Production secrets generated in .env`);
-      console.log(chalk.blue('ℹ'), 'Secrets are stored locally and gitignored\n');
-    } else {
-      console.log(chalk.blue('ℹ'), 'Using existing production secrets from .env\n');
-    }
+  // Ensure production secrets exist in .env
+  const secrets = loadOrGenerateSecrets(env);
+
+  if (secrets.generated) {
+    console.log(chalk.green('✅'), `Production secrets generated in .env`);
+    console.log(chalk.blue('ℹ'), 'Secrets are stored locally and gitignored\n');
   } else {
-    console.log(chalk.blue('ℹ'), 'Using existing Supabase stack configuration');
+    console.log(chalk.blue('ℹ'), 'Using existing production secrets from .env\n');
+  }
+
+  // Generate .light/.env with Supabase-format environment variables
+  // This file is separate from user's .env to keep things clean
+  // CRITICAL: Only regenerate if database is not initialized, to preserve database user passwords
+  const supabaseEnvPath = '.light/.env';
+  const dbDataPath = '.light/supabase/volumes/db/data';
+  const dbIsInitialized = existsSync(dbDataPath) && existsSync(`${dbDataPath}/PG_VERSION`);
+
+  if (!dbIsInitialized) {
+    // Fresh database - generate new .light/.env from current secrets
+    const supabaseEnv = createSupabaseEnvFile(env, projectConfig.name, domain, secrets.secrets);
+    writeFileSync(supabaseEnvPath, supabaseEnv);
+  } else if (!existsSync(supabaseEnvPath)) {
+    // Database exists but .light/.env is missing - this shouldn't happen, but handle it
+    console.log(chalk.yellow('⚠️'), 'Database exists but .light/.env is missing');
+    console.log(chalk.yellow('   This may cause authentication failures'));
+    console.log(chalk.yellow('   To reset: light down --volumes && light up ' + env + '\n'));
   }
 
   // Create necessary directories
-  mkdirSync('.light/volumes/db/data', { recursive: true });
-  mkdirSync('.light/volumes/storage', { recursive: true });
+  mkdirSync('.light/supabase/volumes/db/data', { recursive: true });
+  mkdirSync('.light/supabase/volumes/storage', { recursive: true });
   mkdirSync('.light/traefik', { recursive: true });
 
   // Generate Traefik dynamic config for production (no localhost proxying)
@@ -630,7 +659,9 @@ function getExpectedContainers(projectName: string, composeFiles: string[]): str
       `${projectName}-realtime`,   // Realtime
       `${projectName}-storage`,    // Storage
       `${projectName}-studio`,     // Studio UI
-      `${projectName}-meta`        // Meta service
+      `${projectName}-meta`,       // Meta service
+      `${projectName}-analytics`,  // Analytics (Logflare)
+      `${projectName}-vector`      // Vector (Log collection)
     );
   }
 
@@ -763,7 +794,9 @@ function loadOrGenerateSecrets(env: string): { generated: boolean; secrets: Reco
     `${prefix}_POSTGRES_PASSWORD`,
     `${prefix}_JWT_SECRET`,
     `${prefix}_ANON_KEY`,
-    `${prefix}_SERVICE_KEY`
+    `${prefix}_SERVICE_KEY`,
+    `${prefix}_VAULT_ENC_KEY`,
+    `${prefix}_PG_META_CRYPTO_KEY`
   ];
 
   let envContent = '';
@@ -773,6 +806,11 @@ function loadOrGenerateSecrets(env: string): { generated: boolean; secrets: Reco
   if (existsSync(envFile)) {
     envContent = readFileSync(envFile, 'utf-8');
     envContent.split('\n').forEach(line => {
+      const trimmedLine = line.trim();
+      // Skip empty lines and comments
+      if (!trimmedLine || trimmedLine.startsWith('#')) {
+        return;
+      }
       const [key, ...valueParts] = line.split('=');
       if (key?.trim()) {
         existingSecrets[key.trim()] = valueParts.join('=').trim();
@@ -792,27 +830,43 @@ function loadOrGenerateSecrets(env: string): { generated: boolean; secrets: Reco
   const lines = envContent.split('\n');
 
   // Add section header if needed
-  if (!envContent.includes(`# ${env} Supabase secrets`)) {
+  if (!envContent.includes(`# ${env.charAt(0).toUpperCase() + env.slice(1)} Supabase Secrets`)) {
     lines.push('');
-    lines.push(`# ${env} Supabase secrets (auto-generated)`);
+    lines.push(`# ${env.charAt(0).toUpperCase() + env.slice(1)} Supabase Secrets`);
+    lines.push(`# Auto-generated by Lightstack CLI`);
+    lines.push(`# These secrets are loaded into .light/.env for Supabase services`);
   }
 
-  // Add missing secrets
+  // Add missing secrets and build the complete secrets object
+  const completeSecrets: Record<string, string> = { ...existingSecrets };
+
   if (!existingSecrets[`${prefix}_POSTGRES_PASSWORD`]) {
     lines.push(`${prefix}_POSTGRES_PASSWORD=${secrets.postgresPassword}`);
+    completeSecrets[`${prefix}_POSTGRES_PASSWORD`] = secrets.postgresPassword;
   }
   if (!existingSecrets[`${prefix}_JWT_SECRET`]) {
     lines.push(`${prefix}_JWT_SECRET=${secrets.jwtSecret}`);
+    completeSecrets[`${prefix}_JWT_SECRET`] = secrets.jwtSecret;
   }
   if (!existingSecrets[`${prefix}_ANON_KEY`]) {
     lines.push(`${prefix}_ANON_KEY=${secrets.anonKey}`);
+    completeSecrets[`${prefix}_ANON_KEY`] = secrets.anonKey;
   }
   if (!existingSecrets[`${prefix}_SERVICE_KEY`]) {
     lines.push(`${prefix}_SERVICE_KEY=${secrets.serviceKey}`);
+    completeSecrets[`${prefix}_SERVICE_KEY`] = secrets.serviceKey;
+  }
+  if (!existingSecrets[`${prefix}_VAULT_ENC_KEY`]) {
+    lines.push(`${prefix}_VAULT_ENC_KEY=${secrets.vaultEncKey}`);
+    completeSecrets[`${prefix}_VAULT_ENC_KEY`] = secrets.vaultEncKey;
+  }
+  if (!existingSecrets[`${prefix}_PG_META_CRYPTO_KEY`]) {
+    lines.push(`${prefix}_PG_META_CRYPTO_KEY=${secrets.pgMetaCryptoKey}`);
+    completeSecrets[`${prefix}_PG_META_CRYPTO_KEY`] = secrets.pgMetaCryptoKey;
   }
 
   // Write back to .env
   writeFileSync(envFile, lines.join('\n'));
 
-  return { generated: true, secrets: existingSecrets };
+  return { generated: true, secrets: completeSecrets };
 }

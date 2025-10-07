@@ -435,6 +435,15 @@ Task: "Test network failure recovery in deployment in tests/integration/test_net
   - Keep only essential status updates
   - **File**: `src/commands/up.ts`
 
+- [ ] T110 **[ARCHITECTURE]** Move Traefik config generation from `up` to `init` command
+  - **Problem**: `.light/traefik/` directory created during `light up`, not `light init`
+  - **Issue**: Inconsistent with GitOps requirement (Traefik configs should be committed)
+  - **Current**: `dynamic.yml` and `tls.yml` generated at runtime in `up` command
+  - **Desired**: Generate Traefik configs during `light init`, commit to git
+  - **Impact**: Ensures all infrastructure files present after init (not first up)
+  - **Files**: `src/commands/init.ts` (add Traefik config generation), `src/commands/up.ts` (remove or make idempotent)
+  - **Note**: Consider if runtime generation is intentional (e.g., TLS certs path detection)
+
 ## Implementation Notes (Phase 4)
 
 ### Official Supabase Stack Integration

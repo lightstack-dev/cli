@@ -1,0 +1,8 @@
+# PostgreSQL database files (generated at runtime)
+volumes/db/data/
+
+# Storage files
+volumes/storage/
+
+# Logs
+volumes/logs/vector.log

@@ -1,0 +1,4 @@
+# Force LF line endings for shell scripts and SQL files
+# Required for Docker/Linux compatibility
+*.sh text eol=lf
+*.sql text eol=lf
