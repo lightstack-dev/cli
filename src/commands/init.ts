@@ -112,6 +112,8 @@ function isValidProjectName(name: string): boolean {
 
 async function createDockerComposeFiles(project: ProjectConfig) {
   // Base docker-compose.yml - Only Traefik, no app containers
+  // Note: No explicit network definition - uses Docker Compose default network
+  // Default network is automatically named ${project-name}_default
   const baseCompose = `services:
   router:
     image: traefik:v3.5
@@ -133,12 +135,6 @@ async function createDockerComposeFiles(project: ProjectConfig) {
       - "host.docker.internal:host-gateway"
     volumes:
       - ./traefik:/etc/traefik/dynamic:ro
-    networks:
-      - lightstack
-
-networks:
-  lightstack:
-    driver: bridge
 `;
 
   writeFileSync('.light/docker-compose.yml', baseCompose);
@@ -203,12 +199,14 @@ include:
 `;
 
   // Add default network configuration for Supabase services
+  // Use project-specific network name to avoid collisions between projects
   if (hasSupabase) {
     prodCompose += `
-# Make all services use the lightstack network (including imported Supabase services)
+# Override default network name to be project-specific
+# This prevents collisions when running multiple Lightstack projects
 networks:
   default:
-    name: lightstack
+    name: ${project.name}_lightstack
 `;
   }
 
