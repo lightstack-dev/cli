@@ -39,9 +39,15 @@ A deployment target represents where the application can be deployed.
 **What it contains:**
 - Environment name (production, staging, etc.)
 - Server connection details (host, user, port)
-- Domain configuration for SSL
+- Domain configuration: appDomain, apiDomain, studioDomain (flexible multi-domain support)
 - DNS provider for Let's Encrypt (cloudflare, route53, etc.)
 - Rollback preferences
+
+**Domain flexibility:**
+- All three domains can be subdomains of the same domain (api.myapp.com, studio.myapp.com)
+- Or completely different domains (api.example.org, studio.example.net)
+- apiDomain and studioDomain default to `api.{appDomain}` and `studio.{appDomain}` if not specified
+- Legacy `domain` field supported for backward compatibility (maps to appDomain)
 
 **What it does NOT contain (stored separately):**
 - ACME email (in `~/.lightstack/config.yml` - PII)
@@ -75,21 +81,23 @@ services:
     port: 3000
 
 deployments:
-  - name: development    # light up --env development
+  - name: development    # light up --env development (or just: light up)
     type: local
-    domain: lvh.me
-  - name: staging        # light up --env staging
+    appDomain: lvh.me       # Main app domain
+    apiDomain: api.lvh.me   # API endpoint (optional - defaults to api.{appDomain})
+    studioDomain: studio.lvh.me  # Studio dashboard (optional - defaults to studio.{appDomain})
+  - name: production     # light up production
     type: remote
-    host: staging.myproject.com
-    domain: staging.myproject.com
-  - name: production     # light up --env production
-    type: remote
-    host: myproject.com
-    domain: myproject.com
-  - name: uat           # light up --env uat
-    type: remote
-    host: uat.myproject.com
-    domain: uat.myproject.com
+    appDomain: app.myapp.com     # Main app domain
+    apiDomain: api.myapp.com     # API endpoint (can be different domain entirely)
+    studioDomain: studio.myapp.com  # Studio dashboard
+    host: 192.168.1.100      # SSH target (optional - defaults to appDomain)
+    port: 22
+    user: ubuntu
+    ssl:
+      enabled: true
+      provider: letsencrypt
+      dnsProvider: cloudflare  # For DNS challenge
 ```
 
 ## Relationships

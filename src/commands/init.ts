@@ -130,7 +130,6 @@ async function createDockerComposeFiles(project: ProjectConfig) {
     ports:
       - "80:80"
       - "443:443"
-      - "8080:8080"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -142,6 +141,8 @@ async function createDockerComposeFiles(project: ProjectConfig) {
   // Development override (docker-compose.development.yml)
   const devCompose = `services:
   router:
+    ports:
+      - "8080:8080"  # Traefik dashboard (development only)
     volumes:
       - ./traefik:/etc/traefik/dynamic:ro
       - ./certs:/certs:ro

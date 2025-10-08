@@ -5,13 +5,43 @@ import yaml from 'js-yaml';
 import { confirm } from '@inquirer/prompts';
 import { setupMkcert, generateTraefikTlsConfig } from '../utils/mkcert.js';
 import { getProjectConfig, type ServiceConfig } from '../utils/config.js';
-import { generateSupabaseSecrets, createSupabaseEnvFile } from '../utils/supabase-stack.js';
+import { generateSupabaseSecrets, generateSupabaseEnvFile } from '../utils/supabase-stack.js';
 import { getSupabasePorts } from '../utils/supabase-config.js';
 import { getAcmeEmail } from '../utils/user-config.js';
 
 interface UpOptions {
   env?: string;
   detach?: boolean;
+}
+
+// Helper functions to get domains with proper fallbacks
+function getAppDomain(deployment: DeploymentConfig | undefined): string {
+  if (!deployment) return 'local.lightstack.dev';
+  // Support both legacy 'domain' and new 'appDomain' fields
+  return deployment.appDomain || deployment.domain || 'local.lightstack.dev';
+}
+
+function getApiDomain(deployment: DeploymentConfig | undefined): string {
+  if (!deployment) return 'api.local.lightstack.dev';
+  const appDomain = getAppDomain(deployment);
+  return deployment.apiDomain || `api.${appDomain}`;
+}
+
+function getStudioDomain(deployment: DeploymentConfig | undefined): string {
+  if (!deployment) return 'studio.local.lightstack.dev';
+  const appDomain = getAppDomain(deployment);
+  return deployment.studioDomain || `studio.${appDomain}`;
+}
+
+interface DeploymentConfig {
+  name: string;
+  domain?: string; // Legacy field
+  appDomain?: string;
+  apiDomain?: string;
+  studioDomain?: string;
+  host?: string;
+  port?: number;
+  user?: string;
 }
 
 export async function upCommand(options: UpOptions = {}) {
@@ -164,14 +194,25 @@ export async function upCommand(options: UpOptions = {}) {
       }
     }
 
+    // Get deployment config and domain for this environment
+    const deployment = projectConfig.deployments?.find(d => d.name === env);
+    const appDomain = getAppDomain(deployment);
+
     // Build Docker Compose command
-    const dockerCmd = buildDockerCommand(composeFiles, { detach, projectName: projectConfig.name, env });
+    const dockerCmd = buildDockerCommand(composeFiles, { detach, projectName: projectConfig.name, env, domain: appDomain });
 
     console.log(chalk.blue('🚀'), 'Starting router...');
 
     // Execute Docker Compose with error handling
     try {
-      execSync(dockerCmd, { stdio: 'inherit' });
+      execSync(dockerCmd, {
+        stdio: 'inherit',
+        env: {
+          ...process.env,
+          DOMAIN: appDomain,
+          PROJECT_NAME: projectConfig.name
+        }
+      });
     } catch (error) {
       console.log(chalk.yellow('\n⚠️'), 'Docker Compose encountered an issue during startup');
       console.log(chalk.blue('ℹ'), 'Checking container status...\n');
@@ -317,7 +358,7 @@ function getComposeFiles(env: string): string[] {
 
 function buildDockerCommand(
   composeFiles: string[],
-  options: { detach: boolean; projectName: string; env: string }
+  options: { detach: boolean; projectName: string; env: string; domain: string }
 ): string {
   const fileArgs = composeFiles.map(f => `-f ${f}`).join(' ');
   const projectArg = `--project-name ${options.projectName}`;
@@ -338,6 +379,8 @@ function buildDockerCommand(
   const envFileArg = envFileArgs.join(' ');
   const detachFlag = options.detach ? '-d' : '';
 
+  // Note: DOMAIN and PROJECT_NAME environment variables are set via execSync env option
+  // This ensures cross-platform compatibility (Windows doesn't support VARIABLE=value syntax)
   return `docker compose ${projectArg} ${fileArgs} ${envFileArg} up ${detachFlag}`.trim();
 }
 
@@ -485,9 +528,11 @@ function generateTraefikDynamicConfig(appServices: ServiceConfig[], baasServices
 async function generateProductionStack(projectConfig: ReturnType<typeof getProjectConfig>, env: string, _sslEmail?: string) {
   console.log(chalk.blue('🔧'), `Preparing production environment for ${env}...`);
 
-  // Get domain from deployment config
+  // Get domains from deployment config
   const deployment = projectConfig.deployments?.find(d => d.name === env);
-  const domain = deployment?.domain || 'local.lightstack.dev';
+  const appDomain = getAppDomain(deployment);
+  const apiDomain = getApiDomain(deployment);
+  const studioDomain = getStudioDomain(deployment);
 
   // Ensure Supabase template files are bundled (copy if missing)
   if (!existsSync('.light/supabase/docker-compose.yml')) {
@@ -526,7 +571,7 @@ async function generateProductionStack(projectConfig: ReturnType<typeof getProje
 
   if (!dbIsInitialized) {
     // Fresh database - generate new .light/.env from current secrets
-    const supabaseEnv = createSupabaseEnvFile(env, projectConfig.name, domain, secrets.secrets);
+    const supabaseEnv = generateSupabaseEnvFile(env, projectConfig.name, appDomain, apiDomain, studioDomain, secrets.secrets);
     writeFileSync(supabaseEnvPath, supabaseEnv);
   } else if (!existsSync(supabaseEnvPath)) {
     // Database exists but .light/.env is missing - this shouldn't happen, but handle it
@@ -541,7 +586,7 @@ async function generateProductionStack(projectConfig: ReturnType<typeof getProje
   mkdirSync('.light/traefik', { recursive: true });
 
   // Generate Traefik dynamic config for production (no localhost proxying)
-  const dynamicConfig = generateProductionTraefikConfig(projectConfig.services, domain);
+  const dynamicConfig = generateProductionTraefikConfig(projectConfig.services, appDomain);
   writeFileSync('.light/traefik/dynamic.yml', dynamicConfig);
 }
 
@@ -737,11 +782,19 @@ function runSupabaseMigrations(_projectName: string, env: string): void {
 function showRouterStatus(projectConfig: ReturnType<typeof getProjectConfig>, env: string): void {
   console.log('\n' + chalk.bold('Router ready:'));
 
+  // Get deployment config for domain resolution
+  const deployment = projectConfig.deployments?.find(d => d.name === env);
+  const appDomain = getAppDomain(deployment);
+
   // Show configured services
   projectConfig.services.forEach(service => {
-    const url = `https://${service.name}.lvh.me`;
-    const localUrl = `localhost:${service.port}`;
-    console.log(chalk.green('  ✓'), `${url.padEnd(25)} → ${localUrl}`);
+    const url = env === 'development'
+      ? `https://${service.name}.lvh.me`
+      : `https://${service.name}.${appDomain}`;
+    const localUrl = env === 'development'
+      ? `localhost:${service.port}`
+      : 'Docker container';
+    console.log(chalk.green('  ✓'), `${url.padEnd(35)} → ${localUrl}`);
   });
 
   // Show BaaS URLs
@@ -749,18 +802,21 @@ function showRouterStatus(projectConfig: ReturnType<typeof getProjectConfig>, en
     const detectedServices = detectBaaSServices();
     if (detectedServices.includes('Supabase')) {
       const supabasePorts = getSupabasePorts();
-      console.log(chalk.green('  ✓'), `${'https://api.lvh.me'.padEnd(25)} → localhost:${supabasePorts.api}`);
-      console.log(chalk.green('  ✓'), `${'https://studio.lvh.me'.padEnd(25)} → localhost:${supabasePorts.studio}`);
+      console.log(chalk.green('  ✓'), `${'https://api.lvh.me'.padEnd(35)} → localhost:${supabasePorts.api}`);
+      console.log(chalk.green('  ✓'), `${'https://studio.lvh.me'.padEnd(35)} → localhost:${supabasePorts.studio}`);
     }
   } else {
     // For production environments, show self-hosted Supabase URLs
-    const deployment = projectConfig.deployments?.find(d => d.name === env);
-    const domain = deployment?.domain || 'local.lightstack.dev';
-    console.log(chalk.green('  ✓'), `https://api.${domain}`.padEnd(35) + ' → Kong API Gateway');
-    console.log(chalk.green('  ✓'), `https://studio.${domain}`.padEnd(35) + ' → Supabase Studio');
+    const apiDomain = getApiDomain(deployment);
+    const studioDomain = getStudioDomain(deployment);
+    console.log(chalk.green('  ✓'), `https://${apiDomain}`.padEnd(35) + ' → Kong API Gateway');
+    console.log(chalk.green('  ✓'), `https://${studioDomain}`.padEnd(35) + ' → Supabase Studio');
   }
 
-  console.log(chalk.green('  ✓'), `${'https://router.lvh.me'.padEnd(25)} → Traefik routing`);
+  // Show Traefik dashboard only in development
+  if (env === 'development') {
+    console.log(chalk.green('  ✓'), `${'https://router.lvh.me'.padEnd(35)} → Traefik routing`);
+  }
 
   console.log('\n' + chalk.bold('Start your app with one of:'));
   console.log('  ' + chalk.cyan('npm run dev'));

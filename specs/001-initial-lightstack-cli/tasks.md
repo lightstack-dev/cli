@@ -309,79 +309,138 @@ Task: "Test network failure recovery in deployment in tests/integration/test_net
 
 ### Supabase Stack Tasks (Blocking Production Testing)
 
-- [ ] T089 **[CRITICAL]** Refactor production stack generation to use official Supabase files
+- [x] T089 **[CRITICAL]** Refactor production stack generation to use official Supabase files
   - Copy `templates/supabase/docker-compose.yml` → `.light/supabase/docker-compose.yml`
   - Copy `templates/supabase/volumes/` → `.light/supabase/volumes/`
   - Create `.light/supabase/.env` mapping our variables to Supabase format
   - Update docker compose command to use official stack
   - **Files**: `src/commands/up.ts`, `src/utils/supabase-stack.ts`
+  - **Completed**: 2025-10-08 - Using official bundled Supabase stack
 
-- [ ] T090 Update environment variable mapping for Supabase compatibility
+- [x] T090 Update environment variable mapping for Supabase compatibility
   - Map `PRODUCTION_POSTGRES_PASSWORD` → `POSTGRES_PASSWORD`
   - Map `PRODUCTION_JWT_SECRET` → `JWT_SECRET`
   - Map `PRODUCTION_ANON_KEY` → `ANON_KEY`
   - Map `PRODUCTION_SERVICE_KEY` → `SERVICE_ROLE_KEY`
   - **File**: `src/commands/up.ts` (generateProductionStack function)
+  - **Completed**: 2025-10-08 - Environment mapping via generateSupabaseEnvFile()
 
-- [ ] T091 Remove custom Supabase stack generation code
-  - Delete or simplify `generateSupabaseStack()` in `src/utils/supabase-stack.ts`
-  - Keep only secrets generation functions
-  - Update tests to match new architecture
+- [x] T091 Remove custom Supabase stack generation code
+  - Deleted `generateSupabaseStack()`, `generateKongConfig()`, `generateSupabaseEnvTemplate()`
+  - Renamed `createSupabaseEnvFile()` → `generateSupabaseEnvFile()` for consistency
+  - Removed unused `SupabaseStackConfig` interface
+  - Updated all tests to match new architecture
   - **File**: `src/utils/supabase-stack.ts`
+  - **Completed**: 2025-10-08 - Cleaned up unused generation code
 
-- [ ] T092 Test complete production stack with official Supabase files
+- [x] T092 Test complete production stack with official Supabase files
   - Run `light up production` with real Supabase project
-  - Verify all 9 containers start successfully (no restart loops)
+  - Verify all containers start successfully (no restart loops)
   - Verify database migrations apply correctly
   - Verify Studio, API, and Auth are accessible
   - **Testing**: Manual verification in playground repo
+  - **Completed**: 2025-10-08 - All services report healthy (confirmed by user)
 
 ### P0: Domain Configuration Fixes
 
-- [ ] T093 Use provided domain instead of hardcoded local.lightstack.dev
+- [x] T093 Use provided domain instead of hardcoded local.lightstack.dev
   - Read domain from deployment config (`app.yourdomain.com`)
   - Default to `local.lightstack.dev` only if no domain provided
   - **File**: `src/commands/up.ts` (line 476)
+  - **Completed**: 2025-10-08 - Domain now passed via environment variable to docker compose
 
-- [ ] T094 Add subdomain prompts to `light env add` command
-  - Prompt for app domain (main domain)
-  - Prompt for API subdomain (default: `api.{app-domain}`)
-  - Prompt for Studio subdomain (default: `studio.{app-domain}`)
-  - Store all three in deployment config
+- [x] T094 Add flexible domain configuration to `light env add` command
+  - Renamed `domain` → `appDomain` (with legacy support)
+  - Added `apiDomain` field (defaults to `api.{appDomain}`)
+  - Added `studioDomain` field (defaults to `studio.{appDomain}`)
+  - All three domains can be completely different (e.g., different TLDs)
+  - Supabase detection triggers domain prompts
+  - **Files**: `src/commands/env.ts`, `src/utils/config.ts`, `src/commands/up.ts`, `src/utils/supabase-stack.ts`
+  - **Completed**: 2025-10-08 - Full multi-domain support implemented
+
+- [x] T095 Disable Traefik dashboard in production mode
+  - Moved port 8080 exposure to development override only
+  - Dashboard already disabled in production (`--api.dashboard=false`)
+  - Dashboard route excluded from production Traefik config
+  - **Files**: `src/commands/init.ts`, `src/commands/up.ts`
+  - **Completed**: 2025-10-08 - Dashboard fully disabled in production
+
+### P1: High Priority UX Improvements (Output Polish from User Testing 2025-10-08)
+
+- [x] T096 **[CRITICAL]** Fix production environment showing wrong domains in "Router ready" section
+  - Show configured appDomain instead of hardcoded `app.lvh.me`
+  - Use `appDomain`, `apiDomain`, `studioDomain` from deployment config
+  - Updated `showRouterStatus()` to use deployment config domains
+  - Service URLs now correctly show configured domains in production
+  - **File**: `src/commands/up.ts` (showRouterStatus function)
+  - **Completed**: 2025-10-08 - Production environment now shows correct configured domains
+
+- [x] T097 **[CRITICAL]** Hide Traefik dashboard URL in production environments
+  - Wrapped dashboard URL in `if (env === 'development')` check
+  - Dashboard URL only shown in development mode now
+  - Addresses security concern of exposing management interface in production
+  - **File**: `src/commands/up.ts` (showRouterStatus function)
+  - **Completed**: 2025-10-08 - Traefik dashboard URL hidden in production
+
+- [x] T098 Smart subdomain defaults based on domain structure
+  - Added `getBaseDomain()` helper to extract base domain from app domain
+  - If appDomain has subdomain (e.g., `app.example.com`) → strips to `example.com`
+  - Defaults now intelligently use base domain: `api.example.com`, `studio.example.com`
+  - Avoids awkward defaults like `api.app.example.com`
+  - **File**: `src/commands/env.ts` (domain prompt defaults)
+  - **Completed**: 2025-10-08 - Smart subdomain defaults implemented
+
+- [ ] T099 Remove noise from command output
+  - Remove: `→ Running: light env add production` (implementation detail)
+  - Remove: `ℹ Environment: production` (redundant)
+  - Remove: `Each service can use a different domain if needed` (unnecessary explanation)
+  - Keep only essential user-facing information
+  - **Files**: `src/commands/up.ts`, `src/commands/env.ts`
+
+- [ ] T100 Simplify domain prompt labels
+  - Change: `App domain (main application domain):` → `App domain:`
+  - Change: `API domain (Supabase API endpoint):` → `API domain:`
+  - Change: `Studio domain (Supabase Studio dashboard):` → `Studio domain:`
+  - Prompts are self-explanatory, explanations add noise
   - **File**: `src/commands/env.ts`
 
-- [ ] T095 Disable Traefik dashboard in production mode
-  - Only expose dashboard in development environment
-  - Remove dashboard route from production Traefik config
-  - **File**: `src/commands/up.ts` (generateProductionTraefikConfig function)
+- [ ] T101 Remove Supabase migration hint from CLI output
+  - Remove: `ℹ Create your first migration with: supabase migration new initial_schema`
+  - Not our responsibility to teach Supabase CLI usage
+  - Users can read Supabase docs for migration workflows
+  - **File**: `src/commands/up.ts`
 
-### P1: High Priority UX Improvements
+- [ ] T102 Replace emojis with ASCII characters for better terminal rendering
+  - Emojis have width offset issues in monospace terminals
+  - Replace emoji indicators with standard CLI symbols: ✓ ✗ → • ℹ → [i]
+  - Apply consistently across all commands
+  - **Files**: All command files (`src/commands/*.ts`)
 
-- [ ] T096 Move ACME email prompt from init to env add command
+### P2: Medium Priority Polish (Deferred from P1)
+
+- [ ] T103 Move ACME email prompt from init to env add command
   - Remove ACME email prompt from `light init`
   - Add ACME email prompt to `light env add` (when SSL enabled)
   - Update user config management accordingly
   - **Files**: `src/commands/init.ts`, `src/commands/env.ts`
 
-- [ ] T097 Add confirmation prompt to reuse existing ACME email
+- [ ] T104 Add confirmation prompt to reuse existing ACME email
   - Check for existing ACME email in user config
   - Prompt: "Use existing email (x@y.com) or provide new one?"
   - Allow updating email if user chooses
   - **File**: `src/commands/env.ts`
 
-- [ ] T098 Move Dockerfile to .light/ directory
+- [ ] T105 Move Dockerfile to .light/ directory
   - Generate Dockerfile at `.light/Dockerfile` instead of root
   - Update .gitignore to exclude `.light/Dockerfile`
   - **File**: `src/commands/init.ts`
 
-- [ ] T099 Handle missing SMTP environment variables gracefully
+- [ ] T106 Handle missing SMTP environment variables gracefully
   - Suppress Docker Compose warnings for optional SMTP vars
   - Add default values for SMTP_USER and SMTP_PASS
   - **File**: `src/utils/supabase-stack.ts` or env mapping
 
-### P2: Medium Priority Polish
-
-- [ ] T100 Simplify init command output
+- [ ] T107 Simplify init command output
   - Remove file generation details ("Docker Compose files generated", etc.)
   - Keep only essential confirmation messages
   - **File**: `src/commands/init.ts`
@@ -418,24 +477,24 @@ Task: "Test network failure recovery in deployment in tests/integration/test_net
   - Decision: Remove for now (YAGNI)
   - **File**: `src/cli.ts`
 
-- [ ] T107 Update up command description to emphasize local infrastructure
+- [ ] T114 Update up command description to emphasize local infrastructure
   - Remove "production" from description
   - Emphasize local aspect and environment flexibility
   - **File**: `src/cli.ts`
 
-- [ ] T108 Fix "Error: (outputHelp)" when running light with no args
+- [ ] T115 Fix "Error: (outputHelp)" when running light with no args
   - Handle no arguments gracefully
   - Show help without error message
   - **File**: `src/cli.ts`
 
 ### P3: Low Priority Nice-to-Have
 
-- [ ] T109 Remove noise from Supabase stack generation output
+- [ ] T116 Remove noise from Supabase stack generation output
   - Remove "Generating self-hosted Supabase stack..." message
   - Keep only essential status updates
   - **File**: `src/commands/up.ts`
 
-- [ ] T110 **[ARCHITECTURE]** Move Traefik config generation from `up` to `init` command
+- [ ] T117 **[ARCHITECTURE]** Move Traefik config generation from `up` to `init` command
   - **Problem**: `.light/traefik/` directory created during `light up`, not `light init`
   - **Issue**: Inconsistent with GitOps requirement (Traefik configs should be committed)
   - **Current**: `dynamic.yml` and `tls.yml` generated at runtime in `up` command

@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import yaml from 'js-yaml';
-import { generateSupabaseStack, generateKongConfig, generateSupabaseSecrets, generateSupabaseEnvTemplate } from '../../src/utils/supabase-stack.js';
+import { generateSupabaseSecrets, generateSupabaseEnvFile } from '../../src/utils/supabase-stack.js';
 
-describe('Supabase Stack Generation', () => {
+describe('Supabase Stack Utilities', () => {
   describe('generateSupabaseSecrets', () => {
     it('should generate all required secrets', () => {
       const secrets = generateSupabaseSecrets();
@@ -11,6 +10,8 @@ describe('Supabase Stack Generation', () => {
       expect(secrets).toHaveProperty('jwtSecret');
       expect(secrets).toHaveProperty('anonKey');
       expect(secrets).toHaveProperty('serviceKey');
+      expect(secrets).toHaveProperty('vaultEncKey');
+      expect(secrets).toHaveProperty('pgMetaCryptoKey');
     });
 
     it('should generate unique secrets each time', () => {
@@ -21,6 +22,8 @@ describe('Supabase Stack Generation', () => {
       expect(secrets1.jwtSecret).not.toBe(secrets2.jwtSecret);
       expect(secrets1.anonKey).not.toBe(secrets2.anonKey);
       expect(secrets1.serviceKey).not.toBe(secrets2.serviceKey);
+      expect(secrets1.vaultEncKey).not.toBe(secrets2.vaultEncKey);
+      expect(secrets1.pgMetaCryptoKey).not.toBe(secrets2.pgMetaCryptoKey);
     });
 
     it('should generate non-empty secrets', () => {
@@ -30,214 +33,103 @@ describe('Supabase Stack Generation', () => {
       expect(secrets.jwtSecret.length).toBeGreaterThan(20);
       expect(secrets.anonKey.length).toBeGreaterThan(20);
       expect(secrets.serviceKey.length).toBeGreaterThan(20);
+      expect(secrets.vaultEncKey.length).toBeGreaterThan(0);
+      expect(secrets.pgMetaCryptoKey.length).toBeGreaterThan(0);
+    });
+
+    it('should generate vault encryption key with exactly 32 characters', () => {
+      const secrets = generateSupabaseSecrets();
+
+      // Vault encryption key must be exactly 32 characters for AES-256
+      expect(secrets.vaultEncKey.length).toBe(32);
     });
   });
 
-  describe('generateSupabaseStack', () => {
-    const config = {
-      projectName: 'test-project',
-      domain: 'example.com',
-      environment: 'production',
-      sslEmail: 'test@example.com'
+  describe('generateSupabaseEnvFile', () => {
+    const mockSecrets = {
+      PRODUCTION_POSTGRES_PASSWORD: 'test-postgres-pass',
+      PRODUCTION_JWT_SECRET: 'test-jwt-secret',
+      PRODUCTION_ANON_KEY: 'test-anon-key',
+      PRODUCTION_SERVICE_KEY: 'test-service-key',
+      PRODUCTION_VAULT_ENC_KEY: 'test-vault-key-32-chars-exact!',
+      PRODUCTION_PG_META_CRYPTO_KEY: 'test-pg-meta-key-64-chars',
     };
 
-    it('should generate valid YAML', () => {
-      const stack = generateSupabaseStack(config);
-      expect(() => yaml.load(stack)).not.toThrow();
+    it('should generate valid env file content', () => {
+      const envContent = generateSupabaseEnvFile('production', 'test-project', 'app.example.com', 'api.example.com', 'studio.example.com', mockSecrets);
+
+      expect(envContent).toContain('POSTGRES_PASSWORD=test-postgres-pass');
+      expect(envContent).toContain('JWT_SECRET=test-jwt-secret');
+      expect(envContent).toContain('ANON_KEY=test-anon-key');
+      expect(envContent).toContain('SERVICE_ROLE_KEY=test-service-key');
     });
 
-    it('should include all required Supabase services', () => {
-      const stack = generateSupabaseStack(config);
-      const parsed = yaml.load(stack) as any;
+    it('should include project name in configuration', () => {
+      const envContent = generateSupabaseEnvFile('production', 'my-app', 'app.example.com', 'api.example.com', 'studio.example.com', mockSecrets);
 
-      // Verify all 8 services exist
-      expect(parsed.services.db).toBeDefined();
-      expect(parsed.services.kong).toBeDefined();
-      expect(parsed.services.auth).toBeDefined();
-      expect(parsed.services.rest).toBeDefined();
-      expect(parsed.services.realtime).toBeDefined();
-      expect(parsed.services.storage).toBeDefined();
-      expect(parsed.services.studio).toBeDefined();
-      expect(parsed.services.meta).toBeDefined();
+      expect(envContent).toContain('STUDIO_DEFAULT_ORGANIZATION=my-app');
+      expect(envContent).toContain('STUDIO_DEFAULT_PROJECT=my-app');
+      expect(envContent).toContain('SMTP_SENDER_NAME=my-app');
     });
 
-    it('should use project name in container names', () => {
-      const stack = generateSupabaseStack(config);
-      const parsed = yaml.load(stack) as any;
+    it('should include domain in API URLs', () => {
+      const envContent = generateSupabaseEnvFile('production', 'test-project', 'app.example.com', 'api.example.com', 'studio.example.com', mockSecrets);
 
-      expect(parsed.services.db.container_name).toBe('test-project-db');
-      expect(parsed.services.kong.container_name).toBe('test-project-kong');
-      expect(parsed.services.studio.container_name).toBe('test-project-studio');
+      expect(envContent).toContain('API_EXTERNAL_URL=https://api.example.com');
+      expect(envContent).toContain('SUPABASE_PUBLIC_URL=https://api.example.com');
+      expect(envContent).toContain('SITE_URL=https://app.example.com');
     });
 
-    it('should configure PostgreSQL with health check', () => {
-      const stack = generateSupabaseStack(config);
-      const parsed = yaml.load(stack) as any;
+    it('should disable email autoconfirm in production', () => {
+      const envContent = generateSupabaseEnvFile('production', 'test-project', 'app.example.com', 'api.example.com', 'studio.example.com', mockSecrets);
 
-      expect(parsed.services.db.image).toContain('supabase/postgres');
-      expect(parsed.services.db.healthcheck).toBeDefined();
-      expect(Array.isArray(parsed.services.db.healthcheck.test)).toBe(true);
-      expect(parsed.services.db.healthcheck.test.join(' ')).toContain('pg_isready');
+      expect(envContent).toContain('ENABLE_EMAIL_AUTOCONFIRM=false');
     });
 
-    it('should configure persistent volumes for database', () => {
-      const stack = generateSupabaseStack(config);
-      const parsed = yaml.load(stack) as any;
+    it('should enable email autoconfirm in development', () => {
+      const envContent = generateSupabaseEnvFile('development', 'test-project', 'localhost', 'api.localhost', 'studio.localhost', mockSecrets);
 
-      expect(parsed.services.db.volumes).toBeDefined();
-      expect(parsed.services.db.volumes.some((v: string) => v.includes('/var/lib/postgresql/data'))).toBe(true);
-    });
-
-    it('should configure Traefik labels for Kong API', () => {
-      const stack = generateSupabaseStack(config);
-      const parsed = yaml.load(stack) as any;
-
-      expect(parsed.services.kong.labels).toBeDefined();
-      expect(parsed.services.kong.labels.some((l: string) => l.includes('traefik.enable=true'))).toBe(true);
-      expect(parsed.services.kong.labels.some((l: string) => l.includes(`api.${config.domain}`))).toBe(true);
-    });
-
-    it('should configure Traefik labels for Studio', () => {
-      const stack = generateSupabaseStack(config);
-      const parsed = yaml.load(stack) as any;
-
-      expect(parsed.services.studio.labels).toBeDefined();
-      expect(parsed.services.studio.labels.some((l: string) => l.includes('traefik.enable=true'))).toBe(true);
-      expect(parsed.services.studio.labels.some((l: string) => l.includes(`studio.${config.domain}`))).toBe(true);
-    });
-
-    it('should configure service dependencies', () => {
-      const stack = generateSupabaseStack(config);
-      const parsed = yaml.load(stack) as any;
-
-      // Kong depends on db
-      expect(parsed.services.kong.depends_on).toBeDefined();
-      expect(parsed.services.kong.depends_on.db).toBeDefined();
-
-      // Auth depends on db
-      expect(parsed.services.auth.depends_on).toBeDefined();
-      expect(parsed.services.auth.depends_on.db).toBeDefined();
-    });
-
-    it('should use local.lightstack.dev for local production testing', () => {
-      const localConfig = {
-        projectName: 'test-project',
-        domain: 'local.lightstack.dev',
-        environment: 'production'
-      };
-
-      const stack = generateSupabaseStack(localConfig);
-      expect(stack).toContain('local.lightstack.dev');
-      // Should not include Let's Encrypt cert resolver for local testing
-      expect(stack).not.toContain('certresolver=letsencrypt');
-    });
-
-    it('should include Let\'s Encrypt cert resolver for remote domains', () => {
-      const stack = generateSupabaseStack(config);
-      const parsed = yaml.load(stack) as any;
-
-      // Kong should have cert resolver label
-      expect(parsed.services.kong.labels.some((l: string) => l.includes('certresolver=letsencrypt'))).toBe(true);
-    });
-
-    it('should configure all services on lightstack network', () => {
-      const stack = generateSupabaseStack(config);
-      const parsed = yaml.load(stack) as any;
-
-      expect(parsed.services.db.networks).toContain('lightstack');
-      expect(parsed.services.kong.networks).toContain('lightstack');
-      expect(parsed.services.auth.networks).toContain('lightstack');
-      expect(parsed.services.rest.networks).toContain('lightstack');
-      expect(parsed.services.studio.networks).toContain('lightstack');
-    });
-  });
-
-  describe('generateKongConfig', () => {
-    it('should generate valid YAML', () => {
-      const config = generateKongConfig();
-      expect(() => yaml.load(config)).not.toThrow();
-    });
-
-    it('should define all required Supabase API routes', () => {
-      const config = generateKongConfig();
-      const parsed = yaml.load(config) as any;
-
-      expect(parsed.services).toBeDefined();
-      expect(parsed.services.length).toBeGreaterThan(0);
-
-      // Check for key services
-      const serviceNames = parsed.services.map((s: any) => s.name);
-      expect(serviceNames).toContain('rest-v1');
-      expect(serviceNames).toContain('realtime-v1');
-      expect(serviceNames).toContain('storage-v1');
-    });
-
-    it('should configure CORS plugin', () => {
-      const config = generateKongConfig();
-      const parsed = yaml.load(config) as any;
-
-      const corsPlugin = parsed.plugins?.find((p: any) => p.name === 'cors');
-      expect(corsPlugin).toBeDefined();
-      expect(corsPlugin.config.origins).toContain('*');
-      expect(corsPlugin.config.credentials).toBe(true);
-    });
-
-    it('should configure key-auth plugin', () => {
-      const config = generateKongConfig();
-      const parsed = yaml.load(config) as any;
-
-      const keyAuthPlugin = parsed.plugins?.find((p: any) => p.name === 'key-auth');
-      expect(keyAuthPlugin).toBeDefined();
-      expect(keyAuthPlugin.config.key_names).toContain('apikey');
-    });
-
-    it('should map REST API to correct upstream', () => {
-      const config = generateKongConfig();
-      const parsed = yaml.load(config) as any;
-
-      const restService = parsed.services.find((s: any) => s.name === 'rest-v1');
-      expect(restService).toBeDefined();
-      expect(restService.url).toBe('http://rest:3000/');
-    });
-  });
-
-  describe('generateSupabaseEnvTemplate', () => {
-    it('should include all generated secrets', () => {
-      const secrets = generateSupabaseSecrets();
-      const envTemplate = generateSupabaseEnvTemplate(secrets);
-
-      expect(envTemplate).toContain(`POSTGRES_PASSWORD=${secrets.postgresPassword}`);
-      expect(envTemplate).toContain(`JWT_SECRET=${secrets.jwtSecret}`);
-      expect(envTemplate).toContain(`ANON_KEY=${secrets.anonKey}`);
-      expect(envTemplate).toContain(`SERVICE_KEY=${secrets.serviceKey}`);
+      expect(envContent).toContain('ENABLE_EMAIL_AUTOCONFIRM=true');
     });
 
     it('should include SMTP configuration placeholders', () => {
-      const secrets = generateSupabaseSecrets();
-      const envTemplate = generateSupabaseEnvTemplate(secrets);
+      const envContent = generateSupabaseEnvFile('production', 'test-project', 'app.example.com', 'api.example.com', 'studio.example.com', mockSecrets);
 
-      expect(envTemplate).toContain('SMTP_HOST=');
-      expect(envTemplate).toContain('SMTP_PORT=587');
-      expect(envTemplate).toContain('SMTP_USER=');
-      expect(envTemplate).toContain('SMTP_PASS=');
+      expect(envContent).toContain('SMTP_HOST=');
+      expect(envContent).toContain('SMTP_PORT=587');
+      expect(envContent).toContain('SMTP_USER=');
+      expect(envContent).toContain('SMTP_PASS=');
     });
 
-    it('should include helpful comments', () => {
-      const secrets = generateSupabaseSecrets();
-      const envTemplate = generateSupabaseEnvTemplate(secrets);
+    it('should include database configuration', () => {
+      const envContent = generateSupabaseEnvFile('production', 'test-project', 'app.example.com', 'api.example.com', 'studio.example.com', mockSecrets);
 
-      expect(envTemplate).toContain('# Supabase Production Secrets');
-      expect(envTemplate).toContain('# Generated by Lightstack CLI');
-      expect(envTemplate).toContain('SAVE THIS FILE SECURELY');
+      expect(envContent).toContain('POSTGRES_HOST=db');
+      expect(envContent).toContain('POSTGRES_PORT=5432');
+      expect(envContent).toContain('POSTGRES_DB=postgres');
     });
 
-    it('should include optional S3 configuration', () => {
-      const secrets = generateSupabaseSecrets();
-      const envTemplate = generateSupabaseEnvTemplate(secrets);
+    it('should include encryption keys', () => {
+      const envContent = generateSupabaseEnvFile('production', 'test-project', 'app.example.com', 'api.example.com', 'studio.example.com', mockSecrets);
 
-      expect(envTemplate).toContain('# Optional: S3 for file storage');
-      expect(envTemplate).toContain('# AWS_ACCESS_KEY_ID=');
-      expect(envTemplate).toContain('# S3_BUCKET_NAME=');
+      expect(envContent).toContain('VAULT_ENC_KEY=test-vault-key-32-chars-exact!');
+      expect(envContent).toContain('PG_META_CRYPTO_KEY=test-pg-meta-key-64-chars');
+    });
+
+    it('should extract secrets from environment-prefixed keys', () => {
+      const devSecrets = {
+        DEVELOPMENT_POSTGRES_PASSWORD: 'dev-pass',
+        DEVELOPMENT_JWT_SECRET: 'dev-jwt',
+        DEVELOPMENT_ANON_KEY: 'dev-anon',
+        DEVELOPMENT_SERVICE_KEY: 'dev-service',
+        DEVELOPMENT_VAULT_ENC_KEY: 'dev-vault-32-chars-exactly!!!',
+        DEVELOPMENT_PG_META_CRYPTO_KEY: 'dev-pg-meta-key',
+      };
+
+      const envContent = generateSupabaseEnvFile('development', 'test-project', 'localhost', 'api.localhost', 'studio.localhost', devSecrets);
+
+      expect(envContent).toContain('POSTGRES_PASSWORD=dev-pass');
+      expect(envContent).toContain('JWT_SECRET=dev-jwt');
     });
   });
 });

@@ -233,12 +233,19 @@ Git tag deployed: v1.2.3
 5. Save DNS_API_KEY to .env (gitignored)
 6. Preserve existing configuration and formatting
 
-**Interactive Flow** (when run without options):
+**Interactive Flow** (when run without options with Supabase project):
 ```
 📍 Deployment target configuration for 'production'
 
-Domain (public domain): example.com
-SSH host [example.com]:
+App domain (main application domain): app.example.com
+
+ℹ Supabase project detected - configure service domains:
+  Each service can use a different domain if needed
+
+API domain (Supabase API endpoint) [api.app.example.com]: api.example.com
+Studio domain (Supabase Studio dashboard) [studio.app.example.com]: studio.example.com
+
+SSH host (leave empty to use app domain) [app.example.com]:
 SSH user [ubuntu]: deploy
 SSH port [22]:
 Enable SSL [Y/n]: y
@@ -249,11 +256,12 @@ DNS API key: ********************
 ✅ Added 'production' environment to light.config.yml
 ✅ DNS API key saved to .env (gitignored)
 
-ACME email already configured: dev@example.com (from ~/.lightstack/config.yml)
+ℹ ACME email already configured: dev@example.com (from ~/.lightstack/config.yml)
 
-To test locally: light up production
-To deploy: light deploy production
-To edit: Update the configuration in light.config.yml
+Next steps:
+  Test locally: light up production
+  Deploy: light deploy production
+  Edit: Update configuration in light.config.yml
 ```
 
 **Success Output**:
@@ -274,15 +282,17 @@ To deploy: light deploy production
 Configured environments:
 
 ● production
-  Host: prod.example.com
-  Domain: example.com
+  App domain: app.example.com
+  API domain: api.example.com
+  Studio domain: studio.example.com
+  SSH: prod.example.com (override)
   User: deploy
   Port: 22
   SSL: Enabled (letsencrypt)
 
 ● staging
-  Host: staging.example.com
-  Domain: staging.example.com
+  App domain: staging.example.com
+  SSH: staging.example.com
   User: ubuntu
   Port: 22
   SSL: Disabled

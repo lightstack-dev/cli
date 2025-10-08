@@ -6,6 +6,23 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import yaml from 'js-yaml';
 import { getAcmeEmail, getUserConfigPath } from '../utils/user-config.js';
 
+/**
+ * Extract base domain from app domain for smart subdomain defaults
+ * Examples:
+ *   app.example.com → example.com
+ *   example.com → example.com
+ *   app.subdomain.example.com → subdomain.example.com (keeps last 2 parts)
+ */
+function getBaseDomain(appDomain: string): string {
+  const parts = appDomain.split('.');
+  // If domain has 3+ parts (app.example.com), strip first part
+  // If domain has 2 parts (example.com), keep as is
+  if (parts.length >= 3) {
+    return parts.slice(1).join('.');
+  }
+  return appDomain;
+}
+
 export function envCommand() {
   const env = new Command('env')
     .description('Manage deployment environments')
@@ -72,15 +89,44 @@ async function addEnvironment(name: string, options: EnvAddOptions) {
     console.log(chalk.blue('📍'), `Deployment target configuration for '${name}'\n`);
 
     // Collect configuration via prompts or options
-    const domain = options.domain || await input({
-      message: 'Domain (public domain for your app):',
-      validate: (value: string) => value.length > 0 || 'Domain is required'
+    const appDomain = options.domain || await input({
+      message: 'App domain (main application domain):',
+      validate: (value: string) => value.length > 0 || 'App domain is required'
     });
 
-    // Host is optional - defaults to domain for SSH
+    // Check if project has Supabase (to determine if we need domain prompts for services)
+    const hasSupabase = existsSync('supabase/config.toml');
+
+    // Prompt for service domains if Supabase project exists
+    let apiDomain: string | undefined;
+    let studioDomain: string | undefined;
+
+    if (hasSupabase) {
+      console.log(chalk.blue('\nℹ'), 'Supabase project detected - configure service domains:\n');
+      console.log(chalk.gray('  Each service can use a different domain if needed\n'));
+
+      // Smart defaults: if appDomain has subdomain, use base domain for services
+      const baseDomain = getBaseDomain(appDomain);
+
+      apiDomain = await input({
+        message: 'API domain (Supabase API endpoint):',
+        default: `api.${baseDomain}`,
+        validate: (value: string) => value.length > 0 || 'API domain is required'
+      });
+
+      studioDomain = await input({
+        message: 'Studio domain (Supabase Studio dashboard):',
+        default: `studio.${baseDomain}`,
+        validate: (value: string) => value.length > 0 || 'Studio domain is required'
+      });
+
+      console.log(); // Visual spacing
+    }
+
+    // Host is optional - defaults to appDomain for SSH
     const host = options.host || await input({
-      message: 'SSH host (leave empty to use domain):',
-      default: domain
+      message: 'SSH host (leave empty to use app domain):',
+      default: appDomain
     });
 
     const user = options.user || await input({
@@ -153,8 +199,10 @@ async function addEnvironment(name: string, options: EnvAddOptions) {
     // Create deployment configuration
     const newDeployment: DeploymentConfig = {
       name,
-      domain,
-      ...(host !== domain && { host }), // Only include host if different from domain
+      appDomain,
+      ...(apiDomain && { apiDomain }),
+      ...(studioDomain && { studioDomain }),
+      ...(host !== appDomain && { host }), // Only include host if different from appDomain
       port,
       user,
       ...(sslConfig && { ssl: sslConfig })
@@ -209,9 +257,18 @@ function listEnvironments() {
     console.log(chalk.bold('Configured environments:\n'));
 
     deployments.forEach(env => {
+      // Support both legacy 'domain' and new 'appDomain' fields
+      const appDomain = env.appDomain || env.domain;
+
       console.log(chalk.green('●'), chalk.bold(env.name));
-      console.log('  Domain:', env.domain);
-      console.log('  SSH:', env.host ? `${env.host} (override)` : env.domain);
+      console.log('  App domain:', appDomain);
+      if (env.apiDomain) {
+        console.log('  API domain:', env.apiDomain);
+      }
+      if (env.studioDomain) {
+        console.log('  Studio domain:', env.studioDomain);
+      }
+      console.log('  SSH:', env.host ? `${env.host} (override)` : appDomain);
       console.log('  User:', env.user || '(default)');
       console.log('  Port:', env.port || 22);
       console.log('  SSL:', env.ssl?.enabled ?

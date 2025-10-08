@@ -24,12 +24,18 @@ const SSLConfigSchema = z.object({
 
 const DeploymentTargetSchema = z.object({
   name: z.string().min(1),
-  domain: z.string().min(1), // Required: public domain for routing and default SSH target
-  host: z.string().optional(), // Optional: override SSH target (e.g., internal IP via Tailscale)
+  domain: z.string().optional(), // Legacy field (deprecated - use appDomain instead)
+  appDomain: z.string().optional(), // Main app domain (e.g., app.mycompany.com or myapp.com)
+  apiDomain: z.string().optional(), // API domain (defaults to api.{appDomain})
+  studioDomain: z.string().optional(), // Studio domain (defaults to studio.{appDomain})
+  host: z.string().optional(), // Override SSH target (e.g., internal IP via Tailscale)
   port: z.number().int().positive().optional(),
   user: z.string().optional(),
   ssl: SSLConfigSchema.optional(),
-});
+}).refine(
+  (data) => data.appDomain || data.domain,
+  { message: "Either 'appDomain' or 'domain' is required" }
+);
 
 const ProjectSchema = z.object({
   name: z.string().min(1),
