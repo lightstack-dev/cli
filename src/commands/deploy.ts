@@ -51,12 +51,12 @@ export function deployCommand(environment: string, options: DeployOptions = {}) 
       return;
     }
 
-    console.log(chalk.blue('🚀'), `Deploying to ${environment} environment...`);
+    console.log(chalk.blue('ℹ'), `Deploying to ${environment} environment...`);
     console.log(chalk.gray(`Target: ${deploymentConfig.user || 'ubuntu'}@${deploymentConfig.host}:${deploymentConfig.port || 22}`));
     console.log(chalk.gray(`Domain: ${deploymentConfig.domain || 'Not configured'}`));
 
     if (dryRun) {
-      console.log(chalk.yellow('⚠️'), 'DRY RUN MODE - No actual changes will be made');
+      console.log(chalk.yellow('!'), 'DRY RUN MODE - No actual changes will be made');
       console.log();
     }
 
@@ -83,16 +83,16 @@ export function deployCommand(environment: string, options: DeployOptions = {}) 
     }
 
     if (dryRun) {
-      console.log('\n' + chalk.yellow('🔍 Dry run complete. No changes were made.'));
+      console.log('\n' + chalk.yellow('ℹ Dry run complete. No changes were made.'));
       console.log('Remove --dry-run flag to perform actual deployment.');
     } else {
-      console.log('\n' + chalk.green('✅ Deployment successful!'));
+      console.log('\n' + chalk.green('✓ Deployment successful!'));
       console.log(`\nYour application is now live at ${environment}.`);
       console.log('Run "light status" to check service health.');
     }
 
   } catch (error) {
-    console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : 'Unknown error');
+    console.error(chalk.red('✗'), error instanceof Error ? error.message : 'Unknown error');
 
     if (error instanceof Error) {
       console.log('\nCause: Deployment failed');
@@ -225,10 +225,10 @@ function runHealthChecks(environment: string, dryRun: boolean): void {
 }
 
 function handleRollback(environment: string, dryRun: boolean): void {
-  console.log(chalk.blue('↩️'), `Rolling back ${environment} deployment...`);
+  console.log(chalk.blue('ℹ'), `Rolling back ${environment} deployment...`);
 
   if (dryRun) {
-    console.log(chalk.yellow('⚠️'), 'DRY RUN MODE - No actual rollback will be performed');
+    console.log(chalk.yellow('!'), 'DRY RUN MODE - No actual rollback will be performed');
     console.log();
     console.log('Would perform rollback steps:');
     console.log('  1. Stop current deployment');

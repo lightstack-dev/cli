@@ -59,7 +59,7 @@ export async function upCommand(options: UpOptions = {}) {
     if (env !== 'development') {
       const envExists = projectConfig.deployments?.some(d => d.name === env);
       if (!envExists) {
-        console.log(chalk.yellow('⚠️'), `Environment '${env}' is not configured.`);
+        console.log(chalk.yellow('!'), `Environment '${env}' is not configured.`);
 
         const shouldConfigure = await confirm({
           message: `Would you like to configure the '${env}' environment now?`,
@@ -68,7 +68,6 @@ export async function upCommand(options: UpOptions = {}) {
 
         if (shouldConfigure) {
           // Run light env add command
-          console.log('\n' + chalk.blue('→'), 'Running:', chalk.cyan(`light env add ${env}`));
           const cliPath = process.argv[1] || 'light';
           const result = spawnSync('node', [cliPath, 'env', 'add', env], {
             stdio: 'inherit',
@@ -79,7 +78,7 @@ export async function upCommand(options: UpOptions = {}) {
             throw new Error(`Failed to configure environment '${env}'`);
           }
 
-          console.log('\n' + chalk.green('✅'), `Environment '${env}' configured. Now starting ${env} infrastructure...\n`);
+          console.log('\n' + chalk.green('✓'), `Environment '${env}' configured. Now starting ${env} infrastructure...\n`);
         } else {
           console.log('\nTo configure later, run:', chalk.cyan(`light env add ${env}`));
           process.exit(0);
@@ -91,14 +90,12 @@ export async function upCommand(options: UpOptions = {}) {
     checkEnvironment(env);
 
     // Setup SSL certificates for development
-    console.log(chalk.blue('ℹ'), `Environment: ${env}`);
-    console.log(); // Visual separation
     if (env === 'development') {
       setupLocalSsl();
       // Generate BaaS proxy configs for development (proxy to Supabase CLI)
       generateBaaSProxyConfigs();
     } else {
-      console.log(chalk.blue('🚀'), 'Setting up production Supabase stack...');
+      console.log(chalk.blue('ℹ'), 'Setting up production Supabase stack...');
 
       // Validate prerequisites for production Supabase deployment
       if (!existsSync('supabase')) {
@@ -123,8 +120,8 @@ export async function upCommand(options: UpOptions = {}) {
       // Check if Supabase dev environment is running
       const supabaseDevRunning = checkSupabaseDevEnvironment();
       if (supabaseDevRunning) {
-        console.log(chalk.yellow('⚠️'), 'Supabase development environment is running');
-        console.log(chalk.yellow('   This conflicts with the production stack (ports, containers)\n'));
+        console.log(chalk.yellow('!'), 'Supabase development environment is running');
+        console.log(chalk.yellow('  This conflicts with the production stack (ports, containers)\n'));
 
         const shouldStop = await confirm({
           message: 'Stop development environment and start production stack?',
@@ -132,7 +129,7 @@ export async function upCommand(options: UpOptions = {}) {
         });
 
         if (shouldStop) {
-          console.log(chalk.blue('→'), 'Stopping development environment...');
+          console.log(chalk.blue('ℹ'), 'Stopping development environment...');
           try {
             execSync('supabase stop', { stdio: 'inherit' });
 
@@ -142,11 +139,11 @@ export async function upCommand(options: UpOptions = {}) {
             }).trim();
 
             if (remainingContainers) {
-              console.log(chalk.yellow('⚠️'), 'Some Supabase containers still running, force stopping...');
+              console.log(chalk.yellow('!'), 'Some Supabase containers still running, force stopping...');
               execSync(`docker stop ${remainingContainers.split('\n').join(' ')}`, { stdio: 'ignore' });
             }
           } catch (error) {
-            console.log(chalk.yellow('⚠️'), 'Error stopping Supabase, continuing anyway...');
+            console.log(chalk.yellow('!'), 'Error stopping Supabase, continuing anyway...');
           }
           console.log();
         } else {
@@ -161,7 +158,7 @@ export async function upCommand(options: UpOptions = {}) {
       // Get ACME email from user config (stored in ~/.lightstack/config.yml)
       const sslEmail = getAcmeEmail();
       if (!sslEmail) {
-        console.log(chalk.yellow('⚠️'), 'ACME email not configured');
+        console.log(chalk.yellow('!'), 'ACME email not configured');
         console.log(chalk.blue('ℹ'), 'Run', chalk.cyan('light init'), 'to configure ACME email for Let\'s Encrypt SSL');
         console.log('');
       }
@@ -179,12 +176,12 @@ export async function upCommand(options: UpOptions = {}) {
       const validation = validateContainerStatus(expectedContainers, existingStatus);
 
       if (validation.valid) {
-        console.log(chalk.green('✅'), `Lightstack infrastructure is already running (${env})`);
+        console.log(chalk.green('✓'), `Lightstack infrastructure is already running (${env})`);
         // Show same helpful output as when starting fresh
         showRouterStatus(projectConfig, env);
         return;
       } else {
-        console.log(chalk.yellow('⚠️'), 'Infrastructure is incomplete, restarting...');
+        console.log(chalk.yellow('!'), 'Infrastructure is incomplete, restarting...');
         if (validation.missing.length > 0) {
           console.log(chalk.gray('  Missing:'), validation.missing.join(', '));
         }
@@ -201,7 +198,7 @@ export async function upCommand(options: UpOptions = {}) {
     // Build Docker Compose command
     const dockerCmd = buildDockerCommand(composeFiles, { detach, projectName: projectConfig.name, env, domain: appDomain });
 
-    console.log(chalk.blue('🚀'), 'Starting router...');
+    console.log(chalk.blue('ℹ'), 'Starting router...');
 
     // Execute Docker Compose with error handling
     try {
@@ -214,26 +211,26 @@ export async function upCommand(options: UpOptions = {}) {
         }
       });
     } catch (error) {
-      console.log(chalk.yellow('\n⚠️'), 'Docker Compose encountered an issue during startup');
+      console.log(chalk.yellow('\n!'), 'Docker Compose encountered an issue during startup');
       console.log(chalk.blue('ℹ'), 'Checking container status...\n');
 
       // Check which containers are actually running
       const status = checkInfrastructureStatus(projectConfig.name, env);
 
       if (status.hasRunningContainers) {
-        console.log(chalk.yellow('⚠️'), 'Some containers started successfully:');
+        console.log(chalk.yellow('!'), 'Some containers started successfully:');
         status.running.forEach(container => {
           console.log(chalk.green('  ✓'), container);
         });
 
         if (status.failed.length > 0) {
-          console.log(chalk.yellow('\n⚠️'), 'Some containers failed to start:');
+          console.log(chalk.yellow('\n!'), 'Some containers failed to start:');
           status.failed.forEach(container => {
             console.log(chalk.red('  ✗'), container);
           });
         }
 
-        console.log(chalk.blue('\n💡 Recovery options:'));
+        console.log(chalk.blue('\nℹ Recovery options:'));
         console.log('  1. Try running the command again:', chalk.cyan(`light up ${env}`));
         console.log('  2. Check logs for failed containers:', chalk.cyan('light logs'));
         console.log('  3. Stop and restart:', chalk.cyan('light down && light up ' + env));
@@ -241,15 +238,15 @@ export async function upCommand(options: UpOptions = {}) {
         // Don't exit with error if some containers are running
         return;
       } else {
-        console.log(chalk.red('❌'), 'No containers are running');
-        console.log(chalk.blue('\n💡 Try:'));
+        console.log(chalk.red('✗'), 'No containers are running');
+        console.log(chalk.blue('\nℹ Try:'));
         console.log('  1. Check Docker Desktop is running');
         console.log('  2. Clean up and retry:', chalk.cyan('light down && light up ' + env));
         throw new Error('Failed to start containers');
       }
     }
 
-    console.log(chalk.green('✅'), 'Router started');
+    console.log(chalk.green('✓'), 'Router started');
 
     // Run database migrations for production Supabase stacks
     if (env !== 'development' && existsSync('supabase')) {
@@ -259,7 +256,7 @@ export async function upCommand(options: UpOptions = {}) {
     showRouterStatus(projectConfig, env);
 
   } catch (error) {
-    console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : 'Unknown error');
+    console.error(chalk.red('✗'), error instanceof Error ? error.message : 'Unknown error');
     process.exit(1);
   }
 }
@@ -329,7 +326,7 @@ function checkEnvironment(env: string) {
 
   // Show warnings if any
   if (warnings.length > 0) {
-    console.log(chalk.yellow('⚠️ Warning:'));
+    console.log(chalk.yellow('! Warning:'));
     warnings.forEach(warning => {
       console.log(chalk.yellow(`  ${warning}`));
     });
@@ -450,7 +447,7 @@ function setupLocalSsl(): void {
     // Write TLS configuration
     writeFileSync('.light/traefik/tls.yml', tlsConfig);
   } else {
-    console.log(chalk.yellow('⚠️'), 'Running without SSL. Install mkcert for HTTPS support.');
+    console.log(chalk.yellow('!'), 'Running without SSL. Install mkcert for HTTPS support.');
   }
 }
 
@@ -526,7 +523,7 @@ function generateTraefikDynamicConfig(appServices: ServiceConfig[], baasServices
 }
 
 async function generateProductionStack(projectConfig: ReturnType<typeof getProjectConfig>, env: string, _sslEmail?: string) {
-  console.log(chalk.blue('🔧'), `Preparing production environment for ${env}...`);
+  console.log(chalk.blue('ℹ'), `Preparing production environment for ${env}...`);
 
   // Get domains from deployment config
   const deployment = projectConfig.deployments?.find(d => d.name === env);
@@ -536,7 +533,7 @@ async function generateProductionStack(projectConfig: ReturnType<typeof getProje
 
   // Ensure Supabase template files are bundled (copy if missing)
   if (!existsSync('.light/supabase/docker-compose.yml')) {
-    console.log(chalk.blue('📦'), 'Bundling official Supabase stack...');
+    console.log(chalk.blue('ℹ'), 'Bundling official Supabase stack...');
 
     const path = await import('path');
     const url = await import('url');
@@ -556,7 +553,7 @@ async function generateProductionStack(projectConfig: ReturnType<typeof getProje
   const secrets = loadOrGenerateSecrets(env);
 
   if (secrets.generated) {
-    console.log(chalk.green('✅'), `Production secrets generated in .env`);
+    console.log(chalk.green('✓'), `Production secrets generated in .env`);
     console.log(chalk.blue('ℹ'), 'Secrets are stored locally and gitignored\n');
   } else {
     console.log(chalk.blue('ℹ'), 'Using existing production secrets from .env\n');
@@ -575,7 +572,7 @@ async function generateProductionStack(projectConfig: ReturnType<typeof getProje
     writeFileSync(supabaseEnvPath, supabaseEnv);
   } else if (!existsSync(supabaseEnvPath)) {
     // Database exists but .light/.env is missing - this shouldn't happen, but handle it
-    console.log(chalk.yellow('⚠️'), 'Database exists but .light/.env is missing');
+    console.log(chalk.yellow('!'), 'Database exists but .light/.env is missing');
     console.log(chalk.yellow('   This may cause authentication failures'));
     console.log(chalk.yellow('   To reset: light down --volumes && light up ' + env + '\n'));
   }
@@ -680,7 +677,7 @@ function checkInfrastructureStatus(projectName: string, env: string): ContainerS
 
   } catch (error) {
     // If docker ps fails, we can't check status
-    console.log(chalk.yellow('⚠️'), 'Unable to check container status');
+    console.log(chalk.yellow('!'), 'Unable to check container status');
   }
 
   return status;
@@ -737,12 +734,11 @@ function validateContainerStatus(
 }
 
 function runSupabaseMigrations(_projectName: string, env: string): void {
-  console.log(chalk.blue('\n🗄️'), 'Applying database migrations...');
+  console.log(chalk.blue('\nℹ'), 'Applying database migrations...');
 
   // Check if migrations directory exists
   if (!existsSync('supabase/migrations')) {
     console.log(chalk.blue('ℹ'), 'No migrations found in supabase/migrations/');
-    console.log(chalk.blue('ℹ'), 'Create your first migration with: supabase migration new initial_schema');
     return;
   }
 
@@ -770,10 +766,10 @@ function runSupabaseMigrations(_projectName: string, env: string): void {
       env: { ...process.env }
     });
 
-    console.log(chalk.green('✅'), 'Database migrations applied successfully\n');
+    console.log(chalk.green('✓'), 'Database migrations applied successfully\n');
   } catch (error) {
-    console.log(chalk.yellow('\n⚠️'), 'Failed to apply migrations');
-    console.log(chalk.blue('💡'), 'You can apply them manually with:');
+    console.log(chalk.yellow('\n!'), 'Failed to apply migrations');
+    console.log(chalk.blue('ℹ'), 'You can apply them manually with:');
     console.log(chalk.cyan(`  supabase db push --db-url "postgresql://postgres:PASSWORD@localhost:5432/postgres"`));
     console.log(chalk.gray('  (Replace PASSWORD with ${env.toUpperCase()}_POSTGRES_PASSWORD from .env)\n'));
   }
@@ -815,18 +811,15 @@ function showRouterStatus(projectConfig: ReturnType<typeof getProjectConfig>, en
 
   // Show Traefik dashboard only in development
   if (env === 'development') {
-    console.log(chalk.green('  ✓'), `${'https://router.lvh.me'.padEnd(35)} → Traefik routing`);
+    console.log(chalk.green('  ✓'), `${'https://router.lvh.me'.padEnd(35)} → Router dashboard`);
   }
 
-  console.log('\n' + chalk.bold('Start your app with one of:'));
+  console.log('\n' + chalk.bold('Start your app:'));
   console.log('  ' + chalk.cyan('npm run dev'));
-  console.log('  ' + chalk.cyan('pnpm dev'));
-  console.log('  ' + chalk.cyan('yarn dev'));
-  console.log('  ' + chalk.cyan('bun dev'));
 
   console.log('\n' + chalk.bold('Manage router:'));
-  console.log('  ' + chalk.gray('Restart: ') + chalk.cyan('light restart'));
-  console.log('  ' + chalk.gray('Stop:    ') + chalk.cyan('light down'));
+  console.log('  Restart:  ' + chalk.cyan('light restart'));
+  console.log('  Stop:     ' + chalk.cyan('light down'));
 }
 
 function checkSupabaseDevEnvironment(): boolean {

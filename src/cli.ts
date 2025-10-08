@@ -131,7 +131,7 @@ try {
       // Normal exit for version/help, not an error
       process.exit(0);
     }
-    console.error(chalk.red('Error:'), error.message);
+    console.error(chalk.red('✗'), error.message);
     process.exit(1);
   }
   throw error;

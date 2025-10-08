@@ -3,9 +3,7 @@ import { basename, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import yaml from 'js-yaml';
-import { input } from '@inquirer/prompts';
 import type { ProjectConfig } from '../utils/config.js';
-import { hasAcmeEmail, setAcmeEmail, getAcmeEmail, getUserConfigPath } from '../utils/user-config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -27,23 +25,6 @@ export async function initCommand(projectName?: string, options: InitOptions = {
     // Check if project already exists
     if ((existsSync('light.config.yml') || existsSync('light.config.yml')) && !force) {
       throw new Error('Project already exists. Use --force to overwrite.');
-    }
-
-    // Prompt for ACME email if not already configured
-    if (!hasAcmeEmail()) {
-      console.log(chalk.blue('ℹ'), 'ACME email is required for Let\'s Encrypt SSL certificates');
-      const email = await input({
-        message: 'Enter your email for ACME/Let\'s Encrypt:',
-        validate: (value) => {
-          if (!value) return 'Email is required';
-          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Please enter a valid email';
-          return true;
-        }
-      });
-      setAcmeEmail(email);
-      console.log(chalk.green('✅'), `ACME email saved to ${getUserConfigPath()}`);
-    } else {
-      console.log(chalk.blue('ℹ'), `Using ACME email: ${getAcmeEmail()} (from ${getUserConfigPath()})`);
     }
 
     // Create project configuration
@@ -80,27 +61,17 @@ export async function initCommand(projectName?: string, options: InitOptions = {
     updateGitignore();
 
     // Success message
-    console.log(chalk.green('✅'), `Project '${name}' initialized`);
-    console.log(chalk.green('✅'), 'Docker Compose files generated');
-    console.log(chalk.green('✅'), 'Dockerfile created for production builds');
-    console.log(chalk.green('✅'), `ACME email configured: ${getAcmeEmail()}`);
+    console.log(chalk.green('✓'), `Project '${name}' initialized`);
 
     console.log('\n' + chalk.bold('Next steps:'));
-    console.log('  1. Start the proxy:');
-    console.log('     light up');
+    console.log('  Start router:    ' + chalk.cyan('light up'));
+    console.log('  Start your app:  ' + chalk.cyan('npm run dev'));
     console.log('');
-    console.log('  2. Start your app:');
-    console.log('     npm run dev');
-    console.log('     # (or yarn dev, bun dev, etc.)');
-    console.log('');
-    console.log('  3. Access your app:');
-    console.log('     https://app.lvh.me');
-    console.log('     https://router.lvh.me  (routing management)');
-
-    console.log('\n' + chalk.gray('Optional: Set up BaaS services (Supabase, etc.) to get automatic proxying'));
+    console.log('  Your app:        ' + chalk.cyan('https://app.lvh.me'));
+    console.log('  Router:          ' + chalk.cyan('https://router.lvh.me'));
 
   } catch (error) {
-    console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : 'Unknown error');
+    console.error(chalk.red('✗'), error instanceof Error ? error.message : 'Unknown error');
     process.exit(1);
   }
 }
@@ -166,8 +137,6 @@ async function createDockerComposeFiles(project: ProjectConfig) {
 
     // Copy Supabase template files to project
     const { copyDirectory } = await import('../utils/files.js');
-
-    console.log(chalk.blue('📦'), 'Bundling official Supabase stack...');
     copyDirectory(templateDir, targetDir);
 
     prodCompose += `# Include official Supabase self-hosted stack
@@ -292,7 +261,7 @@ services:
 
 function createDockerfile() {
   // Don't overwrite existing Dockerfile
-  if (existsSync('Dockerfile')) {
+  if (existsSync('.light/Dockerfile')) {
     return;
   }
 
@@ -325,7 +294,7 @@ EXPOSE 3000
 CMD ["pnpm", "start"]
 `;
 
-  writeFileSync('Dockerfile', dockerfile);
+  writeFileSync('.light/Dockerfile', dockerfile);
 }
 
 function updateGitignore() {
@@ -335,6 +304,7 @@ function updateGitignore() {
     '# Infrastructure files are committed for GitOps deployment',
     '# Only runtime/local files are ignored:',
     '.light/.env',             // Generated Supabase env vars (contains secrets)
+    '.light/Dockerfile',       // Generated Dockerfile template
     '.light/certs/',           // mkcert dev certificates
     '.light/volumes/',         // Runtime data (database, storage)
     '.light/traefik/tls.yml',  // mkcert TLS config (dev only)

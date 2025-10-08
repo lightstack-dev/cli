@@ -522,3 +522,15 @@ Task: "Test network failure recovery in deployment in tests/integration/test_net
 2. Create env mapping: `PRODUCTION_*` → Supabase expected format
 3. Use `docker compose -f .light/supabase/docker-compose.yml --env-file .light/supabase/.env up`
 4. No custom YAML generation - leverage official stack entirely
+
+### P2: Medium Priority Polish (Deferred from P1)
+
+- [ ] T108 Handle CTRL+C gracefully in prompts without Node.js warnings
+  - **Problem**: Pressing CTRL+C during prompts shows "unsettled top-level await" warning
+  - **Root cause**: Node.js detects process.exit() called during active await
+  - **Current behavior**: Shows warning + stack trace + error message
+  - **Desired behavior**: Clean "Cancelled" message without warnings
+  - **Attempted solutions**: process.exitCode, custom errors, warning filters (all unsuccessful)
+  - **Research needed**: How do other CLI tools handle this? (inquirer, @clack/prompts, etc.)
+  - **Files**: `src/cli.ts`, `src/commands/up.ts`, `src/commands/env.ts`
+  - **Priority**: P2 (annoying but not blocking core functionality)

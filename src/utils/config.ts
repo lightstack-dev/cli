@@ -182,7 +182,7 @@ export function getProjectConfig(): ProjectConfig {
   const result = loadProjectConfig();
 
   if (!result.config) {
-    console.error(chalk.red('❌ Error:'), result.error);
+    console.error(chalk.red('✗'), result.error);
     process.exit(1);
   }
 

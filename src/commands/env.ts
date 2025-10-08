@@ -4,7 +4,7 @@ import { input, confirm, select } from '@inquirer/prompts';
 import { loadProjectConfig, type DeploymentConfig } from '../utils/config.js';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import yaml from 'js-yaml';
-import { getAcmeEmail, getUserConfigPath } from '../utils/user-config.js';
+import { getAcmeEmail, getUserConfigPath, hasAcmeEmail, setAcmeEmail } from '../utils/user-config.js';
 
 /**
  * Extract base domain from app domain for smart subdomain defaults
@@ -86,11 +86,9 @@ async function addEnvironment(name: string, options: EnvAddOptions) {
       throw new Error('Environment name must contain only lowercase letters, numbers, and hyphens');
     }
 
-    console.log(chalk.blue('📍'), `Deployment target configuration for '${name}'\n`);
-
     // Collect configuration via prompts or options
     const appDomain = options.domain || await input({
-      message: 'App domain (main application domain):',
+      message: 'App domain:',
       validate: (value: string) => value.length > 0 || 'App domain is required'
     });
 
@@ -103,19 +101,18 @@ async function addEnvironment(name: string, options: EnvAddOptions) {
 
     if (hasSupabase) {
       console.log(chalk.blue('\nℹ'), 'Supabase project detected - configure service domains:\n');
-      console.log(chalk.gray('  Each service can use a different domain if needed\n'));
 
       // Smart defaults: if appDomain has subdomain, use base domain for services
       const baseDomain = getBaseDomain(appDomain);
 
       apiDomain = await input({
-        message: 'API domain (Supabase API endpoint):',
+        message: 'API domain:',
         default: `api.${baseDomain}`,
         validate: (value: string) => value.length > 0 || 'API domain is required'
       });
 
       studioDomain = await input({
-        message: 'Studio domain (Supabase Studio dashboard):',
+        message: 'Studio domain:',
         default: `studio.${baseDomain}`,
         validate: (value: string) => value.length > 0 || 'Studio domain is required'
       });
@@ -162,6 +159,23 @@ async function addEnvironment(name: string, options: EnvAddOptions) {
         });
 
         if (sslProvider === 'letsencrypt') {
+          // Prompt for ACME email if not already configured
+          if (!hasAcmeEmail()) {
+            console.log(chalk.blue('ℹ'), 'ACME email is required for Let\'s Encrypt SSL certificates');
+            const email = await input({
+              message: 'Enter your email for ACME/Let\'s Encrypt:',
+              validate: (value) => {
+                if (!value) return 'Email is required';
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Please enter a valid email';
+                return true;
+              }
+            });
+            setAcmeEmail(email);
+            console.log(chalk.green('✓'), `ACME email saved to ${getUserConfigPath()}`);
+          } else {
+            console.log(chalk.blue('ℹ'), `Using ACME email: ${getAcmeEmail()} (from ${getUserConfigPath()})`);
+          }
+
           // Prompt for DNS provider
           const dnsProvider = await select({
             message: 'DNS provider (for Let\'s Encrypt DNS challenge):',
@@ -216,16 +230,16 @@ async function addEnvironment(name: string, options: EnvAddOptions) {
       writeDnsApiKeyToEnv(name, dnsApiKey);
     }
 
-    console.log('\n' + chalk.green('✅'), `Added '${name}' environment to ${configResult.filepath}`);
+    console.log('\n' + chalk.green('✓'), `Added '${name}' environment to ${configResult.filepath}`);
     if (dnsApiKey) {
-      console.log(chalk.green('✅'), `DNS API key saved to .env (gitignored)`);
+      console.log(chalk.green('✓'), `DNS API key saved to .env (gitignored)`);
     }
 
     const acmeEmail = getAcmeEmail();
     if (acmeEmail) {
       console.log('\n' + chalk.blue('ℹ'), `ACME email already configured: ${acmeEmail} (from ${getUserConfigPath()})`);
     } else {
-      console.log('\n' + chalk.yellow('⚠'), `ACME email not configured. Run "light init" to configure it.`);
+      console.log('\n' + chalk.yellow('!'), `ACME email not configured. Run "light init" to configure it.`);
     }
 
     console.log('\nNext steps:');
@@ -234,7 +248,7 @@ async function addEnvironment(name: string, options: EnvAddOptions) {
     console.log('  Edit:', chalk.gray(`Update configuration in ${configResult.filepath}`));
 
   } catch (error) {
-    console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : 'Unknown error');
+    console.error(chalk.red('✗'), error instanceof Error ? error.message : 'Unknown error');
     process.exit(1);
   }
 }
@@ -260,7 +274,7 @@ function listEnvironments() {
       // Support both legacy 'domain' and new 'appDomain' fields
       const appDomain = env.appDomain || env.domain;
 
-      console.log(chalk.green('●'), chalk.bold(env.name));
+      console.log(chalk.green('*'), chalk.bold(env.name));
       console.log('  App domain:', appDomain);
       if (env.apiDomain) {
         console.log('  API domain:', env.apiDomain);
@@ -282,7 +296,7 @@ function listEnvironments() {
     console.log('Edit in:', chalk.cyan(configResult.filepath || 'light.config.yml'));
 
   } catch (error) {
-    console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : 'Unknown error');
+    console.error(chalk.red('✗'), error instanceof Error ? error.message : 'Unknown error');
     process.exit(1);
   }
 }
@@ -335,10 +349,10 @@ async function removeEnvironment(name: string, options: EnvRemoveOptions) {
 
     writeFileSync(configResult.filepath, newContent);
 
-    console.log(chalk.green('✅'), `Removed '${name}' environment`);
+    console.log(chalk.green('✓'), `Removed '${name}' environment`);
 
   } catch (error) {
-    console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : 'Unknown error');
+    console.error(chalk.red('✗'), error instanceof Error ? error.message : 'Unknown error');
     process.exit(1);
   }
 }

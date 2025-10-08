@@ -57,7 +57,7 @@ export function statusCommand(options: StatusOptions = {}) {
     }
 
   } catch (error) {
-    console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : 'Unknown error');
+    console.error(chalk.red('✗'), error instanceof Error ? error.message : 'Unknown error');
 
     if (error instanceof Error && error.message.includes('No containers found')) {
       console.log('\nCause: The development environment is not running');
@@ -189,7 +189,7 @@ function checkBaaSServices(): ServiceStatus[] {
 
 function displayStatusTable(services: ServiceStatus[]) {
   if (services.length === 0) {
-    console.log(chalk.yellow('⚠️'), 'No services found. Run "light up" to start the environment.');
+    console.log(chalk.yellow('!'), 'No services found. Run "light up" to start the environment.');
     return;
   }
 
@@ -216,9 +216,9 @@ function displayStatusTable(services: ServiceStatus[]) {
                        service.status === 'error' ? chalk.red :
                        chalk.yellow;
 
-    const statusIcon = service.status === 'running' ? '✅' :
-                      service.status === 'error' ? '❌' :
-                      '⚠️';
+    const statusIcon = service.status === 'running' ? '✓' :
+                      service.status === 'error' ? '✗' :
+                      '!';
 
     console.log(
       service.name.padEnd(nameWidth) +
@@ -236,12 +236,12 @@ function displayStatusTable(services: ServiceStatus[]) {
   const errorCount = services.filter(s => s.status === 'error').length;
 
   console.log('\n' + chalk.bold('Summary:'));
-  if (runningCount > 0) console.log(chalk.green(`  ✅ ${runningCount} running`));
-  if (stoppedCount > 0) console.log(chalk.yellow(`  ⚠️  ${stoppedCount} stopped`));
-  if (errorCount > 0) console.log(chalk.red(`  ❌ ${errorCount} error`));
+  if (runningCount > 0) console.log(chalk.green(`  ✓ ${runningCount} running`));
+  if (stoppedCount > 0) console.log(chalk.yellow(`  ! ${stoppedCount} stopped`));
+  if (errorCount > 0) console.log(chalk.red(`  ✗ ${errorCount} error`));
 
   if (runningCount === services.length) {
-    console.log('\n' + chalk.green('All services are running! 🚀'));
+    console.log('\n' + chalk.green('All services are running!'));
   } else if (stoppedCount === services.length) {
     console.log('\n' + chalk.yellow('All services are stopped. Run "light up" to start.'));
   }

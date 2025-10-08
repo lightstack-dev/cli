@@ -78,11 +78,12 @@ ENABLE_PHONE_AUTOCONFIRM=false
 ENABLE_ANONYMOUS_USERS=false
 
 # SMTP Configuration (for auth emails)
+# Leave empty if not using email auth (optional)
 SMTP_ADMIN_EMAIL=admin@${appDomain}
-SMTP_HOST=
+SMTP_HOST=smtp.example.com
 SMTP_PORT=587
-SMTP_USER=
-SMTP_PASS=
+SMTP_USER=noreply@example.com
+SMTP_PASS=changeme
 SMTP_SENDER_NAME=${projectName}
 
 # Email Templates
