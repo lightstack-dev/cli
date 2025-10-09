@@ -38,9 +38,7 @@ program
 
 // Global options
 program
-  .option('--no-color', 'Disable colored output')
-  .option('--verbose', 'Show detailed output')
-  .option('--quiet', 'Show minimal output');
+  .option('--no-color', 'Disable colored output');
 
 // Commands
 program
@@ -54,7 +52,7 @@ program
 
 program
   .command('up')
-  .description('Start local development or production stack')
+  .description('Start infrastructure locally')
   .argument('[environment]', 'Target environment (development, production, etc.)', 'development')
   .option('--detach', 'Run in background', true)
   .action(async (environment: string, options: unknown) => {
@@ -117,6 +115,11 @@ program.command('restart')
 program.command('ps').description('Alias for "status"').action(() => {
   statusCommand({ format: 'table' });
 });
+
+// Show help when no arguments provided
+if (process.argv.length === 2) {
+  program.help();
+}
 
 // Error handling
 program.exitOverride();

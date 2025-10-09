@@ -390,111 +390,128 @@ Task: "Test network failure recovery in deployment in tests/integration/test_net
   - **File**: `src/commands/env.ts` (domain prompt defaults)
   - **Completed**: 2025-10-08 - Smart subdomain defaults implemented
 
-- [ ] T099 Remove noise from command output
+- [x] T099 Remove noise from command output
   - Remove: `→ Running: light env add production` (implementation detail)
   - Remove: `ℹ Environment: production` (redundant)
   - Remove: `Each service can use a different domain if needed` (unnecessary explanation)
   - Keep only essential user-facing information
   - **Files**: `src/commands/up.ts`, `src/commands/env.ts`
+  - **Completed**: 2025-10-08 - Verbose command execution details removed (commit b518751)
 
-- [ ] T100 Simplify domain prompt labels
+- [x] T100 Simplify domain prompt labels
   - Change: `App domain (main application domain):` → `App domain:`
   - Change: `API domain (Supabase API endpoint):` → `API domain:`
   - Change: `Studio domain (Supabase Studio dashboard):` → `Studio domain:`
   - Prompts are self-explanatory, explanations add noise
   - **File**: `src/commands/env.ts`
+  - **Completed**: 2025-10-08 - Domain prompt labels simplified (commit b518751)
 
-- [ ] T101 Remove Supabase migration hint from CLI output
+- [x] T101 Remove Supabase migration hint from CLI output
   - Remove: `ℹ Create your first migration with: supabase migration new initial_schema`
   - Not our responsibility to teach Supabase CLI usage
   - Users can read Supabase docs for migration workflows
   - **File**: `src/commands/up.ts`
+  - **Completed**: 2025-10-08 - Migration hint removed (commit b518751)
 
-- [ ] T102 Replace emojis with ASCII characters for better terminal rendering
+- [x] T102 Replace emojis with ASCII characters for better terminal rendering
   - Emojis have width offset issues in monospace terminals
-  - Replace emoji indicators with standard CLI symbols: ✓ ✗ → • ℹ → [i]
+  - Replace emoji indicators with standard CLI symbols: ✅→✓, ❌→✗, ⚠️→!, etc.
   - Apply consistently across all commands
   - **Files**: All command files (`src/commands/*.ts`)
+  - **Completed**: 2025-10-08 - Emojis replaced with ASCII (commit b518751)
 
 ### P2: Medium Priority Polish (Deferred from P1)
 
-- [ ] T103 Move ACME email prompt from init to env add command
+- [x] T103 Move ACME email prompt from init to env add command
   - Remove ACME email prompt from `light init`
   - Add ACME email prompt to `light env add` (when SSL enabled)
   - Update user config management accordingly
   - **Files**: `src/commands/init.ts`, `src/commands/env.ts`
+  - **Completed**: 2025-10-08 - ACME prompt moved to env add (commit b518751)
 
-- [ ] T104 Add confirmation prompt to reuse existing ACME email
+- [x] T104 Add confirmation prompt to reuse existing ACME email
   - Check for existing ACME email in user config
   - Prompt: "Use existing email (x@y.com) or provide new one?"
   - Allow updating email if user chooses
   - **File**: `src/commands/env.ts`
+  - **Completed**: 2025-10-08 - Shows existing ACME email, auto-reuses (commit b518751)
 
-- [ ] T105 Move Dockerfile to .light/ directory
+- [x] T105 Move Dockerfile to .light/ directory
   - Generate Dockerfile at `.light/Dockerfile` instead of root
   - Update .gitignore to exclude `.light/Dockerfile`
   - **File**: `src/commands/init.ts`
+  - **Completed**: 2025-10-08 - Dockerfile now in .light/ (commit b518751)
 
-- [ ] T106 Handle missing SMTP environment variables gracefully
+- [x] T106 Handle missing SMTP environment variables gracefully
   - Suppress Docker Compose warnings for optional SMTP vars
   - Add default values for SMTP_USER and SMTP_PASS
   - **File**: `src/utils/supabase-stack.ts` or env mapping
+  - **Completed**: 2025-10-08 - Default SMTP values added (commit b518751)
 
-- [ ] T107 Simplify init command output
+- [x] T107 Simplify init command output
   - Remove file generation details ("Docker Compose files generated", etc.)
   - Keep only essential confirmation messages
   - **File**: `src/commands/init.ts`
+  - **Completed**: 2025-10-08 - Init output simplified (commit b518751)
 
-- [ ] T101 Update init next steps to emphasize dev/prod parity value
+- [x] T109 Update init next steps to emphasize dev/prod parity value
   - Highlight complete Supabase stack deployment
   - Show local production testing capability
   - Remove generic "other BaaS services" messaging
   - **File**: `src/commands/init.ts`
+  - **Completed**: 2025-10-09 - Init messaging improved ("Start Lightstack infrastructure")
 
-- [ ] T102 Standardize command highlighting (cyan color)
+- [x] T110 Standardize command highlighting (cyan color)
   - Use consistent `chalk.cyan()` for all command examples
   - Apply to: init output, up output, env output
   - Apply to migration command suggestion
   - **Files**: `src/commands/init.ts`, `src/commands/up.ts`, `src/commands/env.ts`
+  - **Completed**: 2025-10-09 - All commands use chalk.cyan() consistently
 
-- [ ] T103 Align domain list between init and up command outputs
+- [x] T111 Align domain list between init and up command outputs
   - Show same domains in both commands
   - Consistent formatting and order
   - **Files**: `src/commands/init.ts`, `src/commands/up.ts`
+  - **Completed**: 2025-10-09 - URL formatting standardized (removed padding, gray descriptions)
 
-- [ ] T104 Group SSL certificate output in up command
+- [x] T112 Group SSL certificate output in up command
   - Move certificate output away from Supabase detection
   - Group all SSL setup together
   - **File**: `src/commands/up.ts`
+  - **Completed**: 2025-10-08 - Already grouped in earlier SSL improvements (T089-T098)
 
-- [ ] T105 Clarify or remove "Supabase instance detected" message
+- [x] T113 Clarify or remove "Supabase instance detected" message
   - Consider removing if not adding value at that point
   - Or make it actionable with next steps
   - **File**: `src/commands/up.ts`
+  - **Completed**: 2025-10-09 - Removed (noise, URLs already shown in output)
 
-- [ ] T106 Remove verbose/quiet flags or implement them
+- [x] T114 Remove verbose/quiet flags or implement them
   - Currently defined but not implemented
   - Decision: Remove for now (YAGNI)
   - **File**: `src/cli.ts`
+  - **Completed**: 2025-10-09 - Removed unused --verbose/--quiet flags
 
-- [ ] T114 Update up command description to emphasize local infrastructure
+- [x] T115 Update up command description to emphasize local infrastructure
   - Remove "production" from description
   - Emphasize local aspect and environment flexibility
   - **File**: `src/cli.ts`
+  - **Completed**: 2025-10-09 - Changed to "Start infrastructure locally"
 
-- [ ] T115 Fix "Error: (outputHelp)" when running light with no args
+- [x] T116 Fix "Error: (outputHelp)" when running light with no args
   - Handle no arguments gracefully
   - Show help without error message
   - **File**: `src/cli.ts`
+  - **Completed**: 2025-10-09 - Added check for no args, calls program.help() directly
 
 ### P3: Low Priority Nice-to-Have
 
-- [ ] T116 Remove noise from Supabase stack generation output
+- [ ] T117 Remove noise from Supabase stack generation output
   - Remove "Generating self-hosted Supabase stack..." message
   - Keep only essential status updates
   - **File**: `src/commands/up.ts`
 
-- [ ] T117 **[ARCHITECTURE]** Move Traefik config generation from `up` to `init` command
+- [ ] T118 **[ARCHITECTURE]** Move Traefik config generation from `up` to `init` command
   - **Problem**: `.light/traefik/` directory created during `light up`, not `light init`
   - **Issue**: Inconsistent with GitOps requirement (Traefik configs should be committed)
   - **Current**: `dynamic.yml` and `tls.yml` generated at runtime in `up` command

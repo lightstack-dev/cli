@@ -26,7 +26,7 @@ describe('light init command', () => {
   it('should initialize a new project with explicit name', () => {
     const output = execSync(`${cli} init test-project`, { encoding: 'utf-8' });
 
-    expect(output).toContain('Project');
+    expect(output).toContain('Lightstack project');
     expect(output).toContain('initialized');
     expect(existsSync('light.config.yml') || existsSync('light.config.yml')).toBe(true);
     // Environment files and compose overrides are created on demand

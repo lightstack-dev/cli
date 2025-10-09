@@ -23,7 +23,7 @@ export function downCommand(options: DownOptions = {}) {
 
     const projectConfig = getProjectConfig();
 
-    console.log(chalk.blue('ℹ'), 'Stopping router...');
+    console.log(chalk.blue('ℹ'), 'Stopping Lightstack infrastructure...');
 
     // Simple approach: Just use project name to stop all containers
     // Docker Compose doesn't need the exact compose files to stop containers
@@ -34,11 +34,13 @@ export function downCommand(options: DownOptions = {}) {
     // Execute Docker Compose
     execSync(dockerCmd, { stdio: 'inherit' });
 
-    console.log(chalk.green('✓'), 'Router stopped');
+    console.log(chalk.green('✓'), 'Lightstack infrastructure stopped');
 
     if (removeVolumes) {
       console.log(chalk.yellow('!'), 'Volumes removed - data may be lost');
     }
+
+    console.log('');
 
   } catch (error) {
     console.error(chalk.red('✗'), error instanceof Error ? error.message : 'Unknown error');

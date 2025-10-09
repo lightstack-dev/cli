@@ -62,11 +62,11 @@ export async function initCommand(projectName?: string, options: InitOptions = {
     updateGitignore();
 
     // Success message
-    console.log(chalk.green('✓'), `Project '${name}' initialized`);
+    console.log(chalk.green('✓'), `Lightstack project '${name}' initialized`);
 
     console.log('\n' + chalk.bold('Next steps:'));
-    console.log('  Start router:    ' + chalk.cyan('light up'));
-    console.log('  Start your app:  ' + chalk.cyan(getDevCommand()));
+    console.log('  Start Lightstack infrastructure: ' + chalk.cyan('light up'));
+    console.log('  Start your app:                  ' + chalk.cyan(getDevCommand()));
     console.log('');
 
   } catch (error) {

@@ -100,7 +100,7 @@ async function addEnvironment(name: string, options: EnvAddOptions) {
     let studioDomain: string | undefined;
 
     if (hasSupabase) {
-      console.log(chalk.blue('\nℹ'), 'Supabase project detected - configure service domains:\n');
+      console.log(chalk.blue('\nℹ'), 'Supabase project detected. Configure service domains:\n');
 
       // Smart defaults: if appDomain has subdomain, use base domain for services
       const baseDomain = getBaseDomain(appDomain);
@@ -122,7 +122,7 @@ async function addEnvironment(name: string, options: EnvAddOptions) {
 
     // Host is optional - defaults to appDomain for SSH
     const host = options.host || await input({
-      message: 'SSH host (leave empty to use app domain):',
+      message: 'SSH host:',
       default: appDomain
     });
 
@@ -242,10 +242,12 @@ async function addEnvironment(name: string, options: EnvAddOptions) {
       console.log('\n' + chalk.yellow('!'), `ACME email not configured. Run "light init" to configure it.`);
     }
 
-    console.log('\nNext steps:');
-    console.log('  Test locally:', chalk.cyan(`light up ${name}`));
-    console.log('  Deploy:', chalk.cyan(`light deploy ${name}`));
-    console.log('  Edit:', chalk.gray(`Update configuration in ${configResult.filepath}`));
+    console.log(chalk.bold('\nNext steps:'));
+    console.log('  Test deployment locally:     ', chalk.cyan(`light up ${name}`));
+    console.log('  Deploy to target environment:', chalk.cyan(`light deploy ${name}`));
+    
+    console.log(chalk.gray(`\nEdit configuration in ${configResult.filepath}`));
+    console.log('');
 
   } catch (error) {
     console.error(chalk.red('✗'), error instanceof Error ? error.message : 'Unknown error');

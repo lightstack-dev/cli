@@ -321,7 +321,7 @@ function checkEnvironment(env: string) {
   // Check if .env file exists (informational only)
   if (!existsSync('.env')) {
     const projectConfig = getProjectConfig();
-    console.log(chalk.blue('ℹ'), `No .env file found. Using built-in defaults (PROJECT_NAME=${projectConfig.name}, APP_PORT=3000).`);
+    console.log(chalk.blue('ℹ'), 'No .env file found. Using built-in defaults', chalk.gray(`(PROJECT_NAME=${projectConfig.name}, APP_PORT=3000)`) + '.');
     console.log(chalk.blue('ℹ'), 'Create a .env file if you need custom environment variables.');
     console.log(); // Empty line for spacing
   }
@@ -393,13 +393,7 @@ function generateBaaSProxyConfigs() {
   const dynamicConfig = generateTraefikDynamicConfig(projectConfig.services, detectedBaaSServices);
   writeFileSync('.light/traefik/dynamic.yml', dynamicConfig);
 
-  if (detectedBaaSServices.length > 0) {
-    // More specific message for single service (currently only Supabase supported)
-    if (detectedBaaSServices.includes('Supabase')) {
-      console.log(chalk.blue('ℹ'), 'Supabase instance detected');
-      console.log(); // Visual separation
-    }
-  }
+  // Supabase detection happens silently - URLs shown in final output
 }
 
 function detectBaaSServices(): string[] {
@@ -778,7 +772,7 @@ function runSupabaseMigrations(_projectName: string, env: string): void {
 }
 
 function showRouterStatus(projectConfig: ReturnType<typeof getProjectConfig>, env: string): void {
-  console.log('\n' + chalk.bold('Services ready:'));
+  console.log('\n' + chalk.bold('Routing ready:'));
 
   // Get deployment config for domain resolution
   const deployment = projectConfig.deployments?.find(d => d.name === env);
@@ -790,35 +784,39 @@ function showRouterStatus(projectConfig: ReturnType<typeof getProjectConfig>, en
       ? `https://${service.name}.lvh.me`
       : `https://${service.name}.${appDomain}`;
     const description = 'Your application';
-    console.log(chalk.green('  ✓'), `${url.padEnd(35)} → ${description}`);
+    console.log(chalk.green('  ✓'), url, chalk.gray(`→ ${description}`));
   });
 
   // Show BaaS URLs with descriptions
   if (env === 'development') {
     const detectedServices = detectBaaSServices();
     if (detectedServices.includes('Supabase')) {
-      console.log(chalk.green('  ✓'), `${'https://api.lvh.me'.padEnd(35)} → Supabase API`);
-      console.log(chalk.green('  ✓'), `${'https://studio.lvh.me'.padEnd(35)} → Supabase Studio`);
+      console.log(chalk.green('  ✓'), 'https://api.lvh.me', chalk.gray('→ Supabase API'));
+      console.log(chalk.green('  ✓'), 'https://studio.lvh.me', chalk.gray('→ Supabase Studio'));
     }
   } else {
     // For production environments, show self-hosted Supabase URLs
     const apiDomain = getApiDomain(deployment);
     const studioDomain = getStudioDomain(deployment);
-    console.log(chalk.green('  ✓'), `https://${apiDomain}`.padEnd(35) + ' → Supabase API');
-    console.log(chalk.green('  ✓'), `https://${studioDomain}`.padEnd(35) + ' → Supabase Studio');
+    console.log(chalk.green('  ✓'), `https://${apiDomain}`, chalk.gray('→ Supabase API'));
+    console.log(chalk.green('  ✓'), `https://${studioDomain}`, chalk.gray('→ Supabase Studio'));
   }
 
   // Show Traefik dashboard only in development
   if (env === 'development') {
-    console.log(chalk.green('  ✓'), `${'https://router.lvh.me'.padEnd(35)} → Router dashboard`);
+    console.log(chalk.green('  ✓'), 'https://router.lvh.me', chalk.gray('→ Router dashboard'));
   }
 
   console.log('\n' + chalk.bold('Next steps:'));
-  console.log('  Start your app:  ' + chalk.cyan(getDevCommand()));
+  console.log('  Start your app: ' + chalk.cyan(getDevCommand()));
 
-  console.log('\n' + chalk.bold('Manage:'));
-  console.log('  Restart:  ' + chalk.cyan('light restart'));
-  console.log('  Stop:     ' + chalk.cyan('light down'));
+  console.log('\n' + chalk.bold('Manage Lightstack infrastructure:'));
+  console.log('  Restart: ' + chalk.cyan('light restart'));
+  console.log('  Stop:    ' + chalk.cyan('light down'));
+
+  console.log('\n' + chalk.bold('Manage deployments:'));
+  console.log('  Add deployment target: ' + chalk.cyan('light env add <name>'));
+  console.log('');
 }
 
 function checkSupabaseDevEnvironment(): boolean {
