@@ -21,8 +21,9 @@
 # Install
 npm install -g @lightstack-dev/cli
 
-# Initialize and start Supabase project, see
-# https://supabase.com/docs/guides/local-development
+# Initialize Supabase project
+# See https://supabase.com/docs/guides/local-development
+supabase init
 
 # Initialize Lightstack (adds HTTPS proxy)
 light init
@@ -75,7 +76,15 @@ Full documentation: **https://cli.lightstack.dev** (coming soon)
 - ✅ Automatic database migrations
 - ✅ Environment management
 - ✅ Health checks and monitoring
-- 🚧 Remote deployment via SSH (coming soon)
+- 🚧 App containerization for deployment testing ([#6](https://github.com/lightstack-dev/cli/issues/6))
+- 🚧 Remote deployment via SSH ([#4](https://github.com/lightstack-dev/cli/issues/4))
+- 🚧 Let's Encrypt SSL automation ([#5](https://github.com/lightstack-dev/cli/issues/5))
+
+## Development
+
+This project is under active development. See [open issues](https://github.com/lightstack-dev/cli/issues) for planned features.
+
+Contributing? Read [CLAUDE.md](CLAUDE.md) for development guidelines.
 
 ## License
 
