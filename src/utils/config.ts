@@ -18,17 +18,24 @@ const ServiceSchema = z.object({
 const SSLConfigSchema = z.object({
   enabled: z.boolean(),
   provider: z.enum(['letsencrypt', 'manual']).optional(),
-  email: z.string().email().optional(),
+  dnsProvider: z.enum(['cloudflare', 'route53', 'digitalocean', 'gandi', 'namecheap']).optional(),
+  // DNS API key is stored in .env, not config (secret should not be committed)
 });
 
 const DeploymentTargetSchema = z.object({
   name: z.string().min(1),
-  host: z.string().min(1),
-  domain: z.string().optional(),
+  domain: z.string().optional(), // Legacy field (deprecated - use appDomain instead)
+  appDomain: z.string().optional(), // Main app domain (e.g., app.mycompany.com or myapp.com)
+  apiDomain: z.string().optional(), // API domain (defaults to api.{appDomain})
+  studioDomain: z.string().optional(), // Studio domain (defaults to studio.{appDomain})
+  host: z.string().optional(), // Override SSH target (e.g., internal IP via Tailscale)
   port: z.number().int().positive().optional(),
   user: z.string().optional(),
   ssl: SSLConfigSchema.optional(),
-});
+}).refine(
+  (data) => data.appDomain || data.domain,
+  { message: "Either 'appDomain' or 'domain' is required" }
+);
 
 const ProjectSchema = z.object({
   name: z.string().min(1),
@@ -50,7 +57,7 @@ interface LoadConfigResult {
 
 const MODULE_NAME = 'lightstack';
 const CONFIG_FILES = [
-  'light.config.yaml',
+  'light.config.yml',
   'light.config.yml',
   'light.config.json',
   '.lightstackrc.yaml',
@@ -175,7 +182,7 @@ export function getProjectConfig(): ProjectConfig {
   const result = loadProjectConfig();
 
   if (!result.config) {
-    console.error(chalk.red('❌ Error:'), result.error);
+    console.error(chalk.red('✗'), result.error);
     process.exit(1);
   }
 

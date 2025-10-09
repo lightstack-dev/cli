@@ -38,17 +38,29 @@ A deployment target represents where the application can be deployed.
 
 **What it contains:**
 - Environment name (production, staging, etc.)
-- Server connection details
-- Domain configuration for SSL
+- Server connection details (host, user, port)
+- Domain configuration: appDomain, apiDomain, studioDomain (flexible multi-domain support)
+- DNS provider for Let's Encrypt (cloudflare, route53, etc.)
 - Rollback preferences
+
+**Domain flexibility:**
+- All three domains can be subdomains of the same domain (api.myapp.com, studio.myapp.com)
+- Or completely different domains (api.example.org, studio.example.net)
+- apiDomain and studioDomain default to `api.{appDomain}` and `studio.{appDomain}` if not specified
+- Legacy `domain` field supported for backward compatibility (maps to appDomain)
+
+**What it does NOT contain (stored separately):**
+- ACME email (in `~/.lightstack/config.yml` - PII)
+- DNS API key (in `.env` - secret)
+- Other secrets (in `.env` - secret)
 
 **Key rules:**
 - Target names must be unique within a project
-- Each target has its own environment variables
-- Targets can have different SSL configurations
+- Each target has separate secrets in local vs remote `.env`
+- Targets can have different SSL and DNS configurations
 
 ### Environment Configuration
-Environment-specific deployment configuration (not environment variables).
+Environment-specific deployment configuration that maps to deployment targets.
 
 **What it contains:**
 - Deployment target type (local, remote)
@@ -56,9 +68,37 @@ Environment-specific deployment configuration (not environment variables).
 - Runtime configuration (not secrets)
 
 **Key rules:**
-- Environment configuration stored in light.config.json only
+- Environment names must match deployment target names
 - Environment variables managed separately by users
 - Each environment defines its Docker Compose file strategy
+
+**Example Configuration (light.config.yml):**
+```yaml
+name: my-project
+services:
+  - name: app
+    type: nuxt
+    port: 3000
+
+deployments:
+  - name: development    # light up --env development (or just: light up)
+    type: local
+    appDomain: lvh.me       # Main app domain
+    apiDomain: api.lvh.me   # API endpoint (optional - defaults to api.{appDomain})
+    studioDomain: studio.lvh.me  # Studio dashboard (optional - defaults to studio.{appDomain})
+  - name: production     # light up production
+    type: remote
+    appDomain: app.myapp.com     # Main app domain
+    apiDomain: api.myapp.com     # API endpoint (can be different domain entirely)
+    studioDomain: studio.myapp.com  # Studio dashboard
+    host: 192.168.1.100      # SSH target (optional - defaults to appDomain)
+    port: 22
+    user: ubuntu
+    ssl:
+      enabled: true
+      provider: letsencrypt
+      dnsProvider: cloudflare  # For DNS challenge
+```
 
 ## Relationships
 
@@ -100,15 +140,19 @@ Initiated → Building → Deploying → Health Check → Complete
 
 ### Configuration Files
 ```
+~/.lightstack/
+└── config.yml           # User config (ACME email - PII, not in project)
+
 project-root/
-├── light.config.yaml     # Main project configuration (YAML)
-├── .env                  # User-managed environment variables (gitignored)
+├── light.config.yml     # Main project configuration (YAML, NO secrets)
+├── .env                  # Secrets (DNS_API_KEY, etc. - gitignored)
+├── Dockerfile            # Production build configuration
 ├── supabase/             # Supabase project files (if using Supabase)
 │   └── config.toml       # Supabase configuration (used for detection)
 └── .light/               # CLI-generated files
-    ├── docker-compose.yml     # Base Docker Compose configuration
-    ├── docker-compose.dev.yml # Development overrides
-    ├── docker-compose.prod.yml # Production overrides
+    ├── docker-compose.yml           # Base Docker Compose configuration
+    ├── docker-compose.development.yml # Development overrides
+    ├── docker-compose.production.yml  # Production overrides (full stack)
     ├── certs/             # Local SSL certificates (mkcert)
     ├── traefik/           # Traefik dynamic configuration
     │   └── dynamic.yml    # BaaS proxy routes (generated when BaaS detected)
@@ -116,11 +160,12 @@ project-root/
 ```
 
 ### Environment Variable Strategy (12-Factor Principles)
-- **Single .env file**: Users create and manage `.env` in project root
-- **No CLI .env generation**: CLI respects existing user setup
+- **User config for PII**: `~/.lightstack/config.yml` stores ACME_EMAIL (PII, not in project)
+- **Project .env for secrets**: CLI writes DNS_API_KEY to `.env` when configuring environments
+- **No secret copying**: Local and remote environments have separate `.env` files
 - **Local development**: `.env` file used automatically via `--env-file ./.env`
-- **Remote deployments**: Servers manage their own environment variables
-- **Secrets separation**: Production secrets never in config files
+- **Remote deployments**: Servers have their own `.env` (CLI prompts for secrets on first deploy)
+- **Secrets separation**: Production secrets never in config files or git
 
 ### Generated Docker Compose
 Lightstack CLI generates Docker Compose files based on the project configuration:
@@ -129,25 +174,42 @@ Lightstack CLI generates Docker Compose files based on the project configuration
 - **Environment overlays**: Environment-specific overrides
 - **Traefik routing**: Via file provider for SSL proxy configuration
 
-### BaaS Integration (Optional)
-When BaaS services are detected (e.g., Supabase), additional configuration is generated:
+### Complete Self-Hosted Supabase Stack (Required)
+When Supabase projects are detected, Lightstack deploys the complete self-hosted stack:
 
 **Detection Strategy**:
-- Check for `supabase/config.toml` → Supabase detected
-- Future: Check for other BaaS config files
+- Check for `supabase/` directory → Self-hosted Supabase stack enabled
+- Currently Supabase-only (other BaaS platforms may be added later if needed - YAGNI)
 
-**Proxy Configuration Generation**:
-- Generated during `light up` command (just-in-time, always current)
-- Creates `.light/traefik/dynamic.yml` with SSL proxy routes
-- Maps clean domains (`api.lvh.me`) to localhost ports (`54321`)
-- Enables dev/prod parity without managing BaaS configuration
-- Uses Traefik file provider (not container labels) for cleaner separation
+**Complete Supabase Stack Deployment**:
+- **PostgreSQL Database** with persistent volumes and proper backup procedures
+- **Supabase Auth (GoTrue)** for authentication and user management
+- **Supabase API (PostgREST)** for database REST API
+- **Supabase Storage** for file storage and management
+- **Supabase Studio** for database administration interface
+- **Supabase Realtime** for WebSocket subscriptions
+- **Kong API Gateway** for request routing and security
+- **Additional services**: Image proxy, edge functions, analytics
 
-**URL Strategy**:
+**Infrastructure Strategy**:
+- Generate complete Docker Compose with 10+ Supabase services
+- Development: All services containerized with development settings
+- Production: Same containers with production settings and persistent volumes
+- Traefik handles SSL termination and routing to all services
+
+**URL Strategy (Self-Hosted)**:
 ```
-Production:  https://api.yourproject.supabase.co
-Development: https://api.lvh.me → http://localhost:54321
+Development:                Production:
+https://studio.lvh.me      →  https://studio.yourdomain.com
+https://api.lvh.me         →  https://api.yourdomain.com
+https://storage.lvh.me     →  https://storage.yourdomain.com
+https://app.lvh.me         →  https://yourdomain.com
 ```
+
+**Database Persistence**:
+- Development: PostgreSQL data in local Docker volumes
+- Production: PostgreSQL data in persistent server volumes with backup strategy
+- Migrations: Supabase migration files applied to both environments identically
 
 ## Data Validation Rules
 
@@ -178,6 +240,41 @@ Development: https://api.lvh.me → http://localhost:54321
 ```bash
 light migrate                    # Check for needed migrations
 light migrate --from=1.0 --to=1.1  # Execute specific migration
+```
+
+## Database Persistence Strategy
+
+### Development Environment
+- **PostgreSQL container** with Docker named volumes
+- **Ephemeral by default** - reset with `light down --volumes`
+- **Schema migrations** managed by Supabase CLI
+- **Test data seeding** automated on startup
+
+### Production Environment
+- **PostgreSQL container** with persistent named volumes
+- **Automated backups** via scheduled Docker volume snapshots
+- **Data retention** following organization policies
+- **Migration strategy** using Supabase CLI in production
+- **Rollback capability** preserving database state
+
+### Data Migration Path
+```bash
+# Hosted Supabase to Self-Hosted Supabase Migration
+pg_dump hosted_supabase_db_url > backup.sql
+light up --env production
+psql self_hosted_supabase_db_url < backup.sql
+```
+
+### Volume Management
+```yaml
+# Production Docker Compose
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /var/lib/lightstack/postgres
+      o: bind
 ```
 
 ## Error Handling

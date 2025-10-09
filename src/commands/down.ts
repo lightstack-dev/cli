@@ -1,6 +1,7 @@
 import { existsSync } from 'fs';
 import { execSync } from 'child_process';
 import chalk from 'chalk';
+import { getProjectConfig } from '../utils/config.js';
 
 interface DownOptions {
   volumes?: boolean;
@@ -11,7 +12,7 @@ export function downCommand(options: DownOptions = {}) {
     const removeVolumes = options.volumes || false;
 
     // Check if project is initialized
-    if (!existsSync('light.config.yaml') && !existsSync('light.config.yml')) {
+    if (!existsSync('light.config.yml') && !existsSync('light.config.yml')) {
       throw new Error('No Lightstack project found.');
     }
 
@@ -20,24 +21,29 @@ export function downCommand(options: DownOptions = {}) {
       throw new Error('Docker Compose files not found.');
     }
 
-    console.log(chalk.blue('🛑'), 'Stopping local proxy...');
+    const projectConfig = getProjectConfig();
 
-    // Build Docker Compose command
-    const envFileArg = existsSync('.env') ? '--env-file ./.env' : '';
+    console.log(chalk.blue('ℹ'), 'Stopping Lightstack infrastructure...');
+
+    // Simple approach: Just use project name to stop all containers
+    // Docker Compose doesn't need the exact compose files to stop containers
+    const projectArg = `--project-name ${projectConfig.name}`;
     const volumesFlag = removeVolumes ? '-v' : '';
-    const dockerCmd = `docker compose -f .light/docker-compose.yml -f .light/docker-compose.dev.yml ${envFileArg} down ${volumesFlag}`.trim();
+    const dockerCmd = `docker compose ${projectArg} down ${volumesFlag}`.trim();
 
     // Execute Docker Compose
     execSync(dockerCmd, { stdio: 'inherit' });
 
-    console.log(chalk.green('✅'), 'Local proxy stopped');
+    console.log(chalk.green('✓'), 'Lightstack infrastructure stopped');
 
     if (removeVolumes) {
-      console.log(chalk.yellow('⚠️'), 'Volumes removed - data may be lost');
+      console.log(chalk.yellow('!'), 'Volumes removed - data may be lost');
     }
 
+    console.log('');
+
   } catch (error) {
-    console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : 'Unknown error');
+    console.error(chalk.red('✗'), error instanceof Error ? error.message : 'Unknown error');
     process.exit(1);
   }
 }

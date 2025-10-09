@@ -12,6 +12,7 @@ import { downCommand } from './commands/down.js';
 import { statusCommand } from './commands/status.js';
 import { logsCommand } from './commands/logs.js';
 import { deployCommand } from './commands/deploy.js';
+import { envCommand } from './commands/env.js';
 
 // Get package.json for version and update checks
 const __filename = fileURLToPath(import.meta.url);
@@ -37,9 +38,7 @@ program
 
 // Global options
 program
-  .option('--no-color', 'Disable colored output')
-  .option('--verbose', 'Show detailed output')
-  .option('--quiet', 'Show minimal output');
+  .option('--no-color', 'Disable colored output');
 
 // Commands
 program
@@ -47,17 +46,17 @@ program
   .description('Initialize a new Lightstack project')
   .argument('[project-name]', 'Project name (defaults to current directory name)')
   .option('--force', 'Overwrite existing configuration')
-  .action((projectName: string | undefined, options: unknown) => {
-    initCommand(projectName, options as { force?: boolean });
+  .action(async (projectName: string | undefined, options: unknown) => {
+    await initCommand(projectName, options as { force?: boolean });
   });
 
 program
   .command('up')
-  .description('Start local proxy for development')
-  .option('--env <name>', 'Environment to use', 'development')
+  .description('Start infrastructure locally')
+  .argument('[environment]', 'Target environment (development, production, etc.)', 'development')
   .option('--detach', 'Run in background', true)
-  .action((options: unknown) => {
-    upCommand(options as { env?: string; detach?: boolean });
+  .action(async (environment: string, options: unknown) => {
+    await upCommand({ env: environment, ...(options as { detach?: boolean }) });
   });
 
 program
@@ -70,6 +69,8 @@ program
   .action((environment: string, options: unknown) => {
     deployCommand(environment, options as { dryRun?: boolean; build?: boolean; rollback?: boolean });
   });
+
+program.addCommand(envCommand());
 
 program
   .command('status')
@@ -98,15 +99,27 @@ program
   });
 
 // Command aliases
-program.command('start').description('Alias for "up"').action(() => {
-  upCommand({ env: 'development', detach: true });
+program.command('start').description('Alias for "up"').action(async () => {
+  await upCommand({ env: 'development', detach: true });
 });
 program.command('stop').description('Alias for "down"').action(() => {
   downCommand({ volumes: false });
 });
+program.command('restart')
+  .description('Restart the stack (stop and start)')
+  .argument('[environment]', 'Target environment (development, production, etc.)', 'development')
+  .action(async (environment: string) => {
+    downCommand({ volumes: false });
+    await upCommand({ env: environment, detach: true });
+  });
 program.command('ps').description('Alias for "status"').action(() => {
   statusCommand({ format: 'table' });
 });
+
+// Show help when no arguments provided
+if (process.argv.length === 2) {
+  program.help();
+}
 
 // Error handling
 program.exitOverride();
@@ -115,7 +128,13 @@ try {
   await program.parseAsync(process.argv);
 } catch (error) {
   if (error instanceof Error) {
-    console.error(chalk.red('Error:'), error.message);
+    // Commander throws errors for --version and --help with exitOverride()
+    // These have specific codes we can check
+    if ('code' in error && (error.code === 'commander.version' || error.code === 'commander.helpDisplayed')) {
+      // Normal exit for version/help, not an error
+      process.exit(0);
+    }
+    console.error(chalk.red('✗'), error.message);
     process.exit(1);
   }
   throw error;

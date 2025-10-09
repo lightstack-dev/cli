@@ -2,6 +2,7 @@ import { existsSync } from 'fs';
 import { execSync } from 'child_process';
 import chalk from 'chalk';
 import { loadProjectConfig } from '../utils/config.js';
+import { getSupabasePorts } from '../utils/supabase-config.js';
 
 interface StatusOptions {
   format?: 'table' | 'json';
@@ -56,7 +57,7 @@ export function statusCommand(options: StatusOptions = {}) {
     }
 
   } catch (error) {
-    console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : 'Unknown error');
+    console.error(chalk.red('✗'), error instanceof Error ? error.message : 'Unknown error');
 
     if (error instanceof Error && error.message.includes('No containers found')) {
       console.log('\nCause: The development environment is not running');
@@ -149,9 +150,11 @@ function checkBaaSServices(): ServiceStatus[] {
 
   // Check if Supabase is running
   if (existsSync('supabase/config.toml')) {
+    const supabasePorts = getSupabasePorts();
+
     try {
       // Check if Supabase is running by testing the health endpoint
-      execSync('curl -s -o /dev/null -w "%{http_code}" http://localhost:54321/rest/v1/', {
+      execSync(`curl -s -o /dev/null -w "%{http_code}" http://localhost:${supabasePorts.api}/rest/v1/`, {
         stdio: 'pipe',
         encoding: 'utf-8'
       });
@@ -160,13 +163,13 @@ function checkBaaSServices(): ServiceStatus[] {
         {
           name: 'supabase-api',
           status: 'running',
-          port: '54321',
+          port: supabasePorts.api.toString(),
           url: 'https://api.lvh.me'
         },
         {
           name: 'supabase-studio',
           status: 'running',
-          port: '54323',
+          port: supabasePorts.studio.toString(),
           url: 'https://studio.lvh.me'
         }
       );
@@ -175,7 +178,7 @@ function checkBaaSServices(): ServiceStatus[] {
         {
           name: 'supabase',
           status: 'stopped',
-          port: '54321'
+          port: supabasePorts.api.toString()
         }
       );
     }
@@ -186,7 +189,7 @@ function checkBaaSServices(): ServiceStatus[] {
 
 function displayStatusTable(services: ServiceStatus[]) {
   if (services.length === 0) {
-    console.log(chalk.yellow('⚠️'), 'No services found. Run "light up" to start the environment.');
+    console.log(chalk.yellow('!'), 'No services found. Run "light up" to start the environment.');
     return;
   }
 
@@ -213,9 +216,9 @@ function displayStatusTable(services: ServiceStatus[]) {
                        service.status === 'error' ? chalk.red :
                        chalk.yellow;
 
-    const statusIcon = service.status === 'running' ? '✅' :
-                      service.status === 'error' ? '❌' :
-                      '⚠️';
+    const statusIcon = service.status === 'running' ? '✓' :
+                      service.status === 'error' ? '✗' :
+                      '!';
 
     console.log(
       service.name.padEnd(nameWidth) +
@@ -233,12 +236,12 @@ function displayStatusTable(services: ServiceStatus[]) {
   const errorCount = services.filter(s => s.status === 'error').length;
 
   console.log('\n' + chalk.bold('Summary:'));
-  if (runningCount > 0) console.log(chalk.green(`  ✅ ${runningCount} running`));
-  if (stoppedCount > 0) console.log(chalk.yellow(`  ⚠️  ${stoppedCount} stopped`));
-  if (errorCount > 0) console.log(chalk.red(`  ❌ ${errorCount} error`));
+  if (runningCount > 0) console.log(chalk.green(`  ✓ ${runningCount} running`));
+  if (stoppedCount > 0) console.log(chalk.yellow(`  ! ${stoppedCount} stopped`));
+  if (errorCount > 0) console.log(chalk.red(`  ✗ ${errorCount} error`));
 
   if (runningCount === services.length) {
-    console.log('\n' + chalk.green('All services are running! 🚀'));
+    console.log('\n' + chalk.green('All services are running!'));
   } else if (stoppedCount === services.length) {
     console.log('\n' + chalk.yellow('All services are stopped. Run "light up" to start.'));
   }

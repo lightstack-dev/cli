@@ -45,7 +45,7 @@ export function installCa(): boolean {
     console.log(chalk.gray('    This may require administrator privileges'));
 
     const result = spawnSync('mkcert', ['-install'], {
-      stdio: 'inherit',
+      stdio: 'pipe', // Silence mkcert's own output
       shell: true
     });
 
@@ -92,6 +92,7 @@ export function generateCertificates(domains: string[] = ['*.lvh.me', 'lvh.me'])
       console.log('Try running: mkcert -install');
       return result;
     }
+    console.log(); // Visual separation after SSL setup
   }
 
   result.caInstalled = true;
@@ -107,7 +108,7 @@ export function generateCertificates(domains: string[] = ['*.lvh.me', 'lvh.me'])
 
   // Check if certificates already exist
   if (existsSync(certPath) && existsSync(keyPath)) {
-    console.log(chalk.blue('🔐'), 'Using existing SSL certificates');
+    // Silent - certificates already exist
     result.certsGenerated = true;
     result.certPath = certPath;
     result.keyPath = keyPath;
@@ -127,8 +128,6 @@ export function generateCertificates(domains: string[] = ['*.lvh.me', 'lvh.me'])
     });
 
     spinner.succeed('SSL certificates generated');
-    console.log(chalk.gray(`  Certificate: ${certPath}`));
-    console.log(chalk.gray(`  Key:         ${keyPath}`));
 
     result.certsGenerated = true;
     result.certPath = certPath;
@@ -149,17 +148,9 @@ export function generateCertificates(domains: string[] = ['*.lvh.me', 'lvh.me'])
  * Setup mkcert for the project
  */
 export function setupMkcert(): MkcertResult {
-  console.log(chalk.blue('🔒'), 'Setting up local SSL certificates...');
-
   const result = generateCertificates();
 
-  if (result.certsGenerated) {
-    console.log(chalk.green('✅'), 'SSL setup complete');
-    console.log('\nLocal domains will be available at:');
-    console.log('  https://app.lvh.me');
-    console.log('  https://proxy.lvh.me');
-    console.log('  https://api.lvh.me (if using Supabase)');
-  } else if (!result.installed) {
+  if (!result.installed) {
     console.log(chalk.yellow('⚠️'), 'SSL certificates not configured');
     console.log('HTTPS will not be available until mkcert is installed');
   }
@@ -171,16 +162,20 @@ export function setupMkcert(): MkcertResult {
  * Update Traefik configuration to use mkcert certificates
  */
 export function generateTraefikTlsConfig(certPath: string, keyPath: string): string {
+  // Extract just the filename, handling both Windows and Unix paths
+  const certFile = certPath.split(/[/\\]/).pop();
+  const keyFile = keyPath.split(/[/\\]/).pop();
+
   return `tls:
   certificates:
-    - certFile: /certs/${certPath.split('/').pop()}
-      keyFile: /certs/${keyPath.split('/').pop()}
+    - certFile: /certs/${certFile}
+      keyFile: /certs/${keyFile}
       stores:
         - default
   stores:
     default:
       defaultCertificate:
-        certFile: /certs/${certPath.split('/').pop()}
-        keyFile: /certs/${keyPath.split('/').pop()}
+        certFile: /certs/${certFile}
+        keyFile: /certs/${keyFile}
 `;
 }

@@ -13,7 +13,7 @@ export function logsCommand(service: string | undefined, options: LogsOptions = 
     const tail = options.tail || '50';
 
     // Check if project is initialized
-    if (!existsSync('light.config.yaml') && !existsSync('light.config.yml')) {
+    if (!existsSync('light.config.yml') && !existsSync('light.config.yml')) {
       throw new Error('No Lightstack project found. Run "light init" first.');
     }
 
@@ -37,7 +37,7 @@ export function logsCommand(service: string | undefined, options: LogsOptions = 
 
     const dockerCmd = `docker compose -f .light/docker-compose.yml -f .light/docker-compose.dev.yml ${envFileArg} logs ${followFlag} ${tailFlag} ${serviceArg}`.trim();
 
-    console.log(chalk.blue('📋'), `Showing logs${service ? ` for ${service}` : ' for all services'}...`);
+    console.log(chalk.blue('ℹ'), `Showing logs${service ? ` for ${service}` : ' for all services'}...`);
     if (follow) {
       console.log(chalk.gray('(Press Ctrl+C to stop following logs)'));
     }
@@ -53,7 +53,7 @@ export function logsCommand(service: string | undefined, options: LogsOptions = 
       // Handle graceful exit
       process.on('SIGINT', () => {
         child.kill('SIGINT');
-        console.log('\n' + chalk.yellow('⚠️'), 'Stopped following logs');
+        console.log('\n' + chalk.yellow('!'), 'Stopped following logs');
         process.exit(0);
       });
 
@@ -72,7 +72,7 @@ export function logsCommand(service: string | undefined, options: LogsOptions = 
         const output = execSync(dockerCmd, { encoding: 'utf-8' });
 
         if (!output || output.trim() === '') {
-          console.log(chalk.yellow('⚠️'), 'No logs available.');
+          console.log(chalk.yellow('!'), 'No logs available.');
           console.log('\nPossible causes:');
           console.log('  - Services are not running (run "light up" first)');
           console.log('  - Services have not generated any logs yet');
@@ -105,7 +105,7 @@ export function logsCommand(service: string | undefined, options: LogsOptions = 
     }
 
   } catch (error) {
-    console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : 'Unknown error');
+    console.error(chalk.red('✗'), error instanceof Error ? error.message : 'Unknown error');
 
     if (error instanceof Error) {
       if (error.message.includes('no containers')) {

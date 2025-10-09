@@ -2,6 +2,7 @@ import { existsSync } from 'fs';
 import { execSync } from 'child_process';
 import chalk from 'chalk';
 import ora from 'ora';
+import { getProjectConfig, type DeploymentConfig } from '../utils/config.js';
 
 interface DeployOptions {
   dryRun?: boolean;
@@ -16,7 +17,7 @@ export function deployCommand(environment: string, options: DeployOptions = {}) 
     const rollback = options.rollback || false;
 
     // Check if project is initialized
-    if (!existsSync('light.config.yaml') && !existsSync('light.config.yml')) {
+    if (!existsSync('light.config.yml') && !existsSync('light.config.yml')) {
       throw new Error('No Lightstack project found. Run "light init" first.');
     }
 
@@ -27,10 +28,22 @@ export function deployCommand(environment: string, options: DeployOptions = {}) 
       throw new Error('Docker is not running. Please start Docker Desktop and try again.');
     }
 
-    // Validate environment
-    const validEnvironments = ['production', 'staging', 'development'];
+    // Load project config and validate environment
+    const projectConfig = getProjectConfig();
+    const validEnvironments = projectConfig.deployments?.map(d => d.name) || [];
+
+    if (validEnvironments.length === 0) {
+      throw new Error('No deployment environments configured. Run "light env add production" to add one.');
+    }
+
     if (!validEnvironments.includes(environment)) {
-      throw new Error(`Invalid environment "${environment}". Valid options are: ${validEnvironments.join(', ')}`);
+      throw new Error(`Environment "${environment}" not found. Available environments: ${validEnvironments.join(', ')}\n\nAdd a new environment with: light env add ${environment}`);
+    }
+
+    // Get deployment configuration for this environment
+    const deploymentConfig = projectConfig.deployments?.find(d => d.name === environment);
+    if (!deploymentConfig) {
+      throw new Error(`Environment "${environment}" configuration not found`);
     }
 
     if (rollback) {
@@ -38,20 +51,22 @@ export function deployCommand(environment: string, options: DeployOptions = {}) 
       return;
     }
 
-    console.log(chalk.blue('🚀'), `Deploying to ${environment} environment...`);
+    console.log(chalk.blue('ℹ'), `Deploying to ${environment} environment...`);
+    console.log(chalk.gray(`Target: ${deploymentConfig.user || 'ubuntu'}@${deploymentConfig.host}:${deploymentConfig.port || 22}`));
+    console.log(chalk.gray(`Domain: ${deploymentConfig.domain || 'Not configured'}`));
 
     if (dryRun) {
-      console.log(chalk.yellow('⚠️'), 'DRY RUN MODE - No actual changes will be made');
+      console.log(chalk.yellow('!'), 'DRY RUN MODE - No actual changes will be made');
       console.log();
     }
 
     // Deployment steps
     const steps = [
       { name: 'Validating configuration', fn: () => validateConfiguration(environment) },
-      { name: 'Checking deployment target', fn: () => checkDeploymentTarget(environment) },
+      { name: 'Checking deployment target', fn: () => checkDeploymentTarget(environment, deploymentConfig) },
       { name: 'Building application', fn: () => buildApplication(build, dryRun) },
       { name: 'Creating deployment bundle', fn: () => createBundle(dryRun) },
-      { name: 'Deploying to target', fn: () => deployToTarget(environment, dryRun) },
+      { name: 'Deploying to target', fn: () => deployToTarget(environment, deploymentConfig, dryRun) },
       { name: 'Running health checks', fn: () => runHealthChecks(environment, dryRun) },
     ];
 
@@ -68,16 +83,16 @@ export function deployCommand(environment: string, options: DeployOptions = {}) 
     }
 
     if (dryRun) {
-      console.log('\n' + chalk.yellow('🔍 Dry run complete. No changes were made.'));
+      console.log('\n' + chalk.yellow('ℹ Dry run complete. No changes were made.'));
       console.log('Remove --dry-run flag to perform actual deployment.');
     } else {
-      console.log('\n' + chalk.green('✅ Deployment successful!'));
+      console.log('\n' + chalk.green('✓ Deployment successful!'));
       console.log(`\nYour application is now live at ${environment}.`);
       console.log('Run "light status" to check service health.');
     }
 
   } catch (error) {
-    console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : 'Unknown error');
+    console.error(chalk.red('✗'), error instanceof Error ? error.message : 'Unknown error');
 
     if (error instanceof Error) {
       console.log('\nCause: Deployment failed');
@@ -103,7 +118,7 @@ function validateConfiguration(environment: string): void {
   }
 }
 
-function checkDeploymentTarget(environment: string): void {
+function checkDeploymentTarget(environment: string, deploymentConfig: DeploymentConfig): void {
   if (environment === 'development') {
     console.log(chalk.gray('    Skipping remote target check for local development'));
     return;
@@ -111,7 +126,10 @@ function checkDeploymentTarget(environment: string): void {
 
   // In a real implementation, this would check SSH connectivity,
   // server requirements, etc.
-  console.log(chalk.gray(`    Target: ${environment} server`));
+  console.log(chalk.gray(`    SSH connectivity: ${deploymentConfig.user || 'ubuntu'}@${deploymentConfig.host}`));
+
+  // TODO: Actual SSH connectivity check
+  // execSync(`ssh -o ConnectTimeout=5 ${deploymentConfig.user || 'ubuntu'}@${deploymentConfig.host} "echo 'Connected'"`)
 }
 
 function buildApplication(forceBuild: boolean, dryRun: boolean): void {
@@ -152,9 +170,12 @@ function createBundle(dryRun: boolean): void {
   // - Exclude development files
 }
 
-function deployToTarget(environment: string, dryRun: boolean): void {
+function deployToTarget(environment: string, deploymentConfig: DeploymentConfig, dryRun: boolean): void {
   if (dryRun) {
-    console.log(chalk.gray(`    Would deploy to ${environment} using Docker Compose`));
+    console.log(chalk.gray(`    Would deploy to ${deploymentConfig.host} using GitOps approach`));
+    console.log(chalk.gray(`    - SSH to ${deploymentConfig.user || 'ubuntu'}@${deploymentConfig.host}`));
+    console.log(chalk.gray(`    - Git pull latest changes`));
+    console.log(chalk.gray(`    - Run: light up --env ${environment}`));
     return;
   }
 
@@ -164,11 +185,18 @@ function deployToTarget(environment: string, dryRun: boolean): void {
       stdio: 'pipe'
     });
   } else {
-    // Remote deployment would involve:
+    // Remote deployment using GitOps approach:
     // - SSH to target server
-    // - Transfer bundle
-    // - Run docker-compose on remote
-    throw new Error('Remote deployment not yet implemented. Use Docker Swarm or Kubernetes for production.');
+    // - Git pull/checkout
+    // - Run light up --env production
+    console.log(chalk.yellow('    GitOps deployment coming soon...'));
+    throw new Error(`Remote deployment not yet implemented. Coming soon:
+
+    1. SSH to ${deploymentConfig.host}
+    2. Git checkout your tagged release
+    3. Run "light up --env ${environment}" on the server
+
+    For now, SSH to your server manually and run these commands.`);
   }
 }
 
@@ -197,10 +225,10 @@ function runHealthChecks(environment: string, dryRun: boolean): void {
 }
 
 function handleRollback(environment: string, dryRun: boolean): void {
-  console.log(chalk.blue('↩️'), `Rolling back ${environment} deployment...`);
+  console.log(chalk.blue('ℹ'), `Rolling back ${environment} deployment...`);
 
   if (dryRun) {
-    console.log(chalk.yellow('⚠️'), 'DRY RUN MODE - No actual rollback will be performed');
+    console.log(chalk.yellow('!'), 'DRY RUN MODE - No actual rollback will be performed');
     console.log();
     console.log('Would perform rollback steps:');
     console.log('  1. Stop current deployment');

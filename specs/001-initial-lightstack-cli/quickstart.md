@@ -5,8 +5,9 @@
 ## Prerequisites
 
 Before starting, ensure you have:
-- Docker Desktop installed and running (for the proxy container)
+- Docker Desktop installed and running (for the Supabase containers)
 - Node.js 20+ installed
+- [Supabase CLI](https://supabase.com/docs/guides/cli) installed (required)
 - [mkcert](https://github.com/FiloSottile/mkcert) installed (optional, for HTTPS)
 - An existing web project (React, Vue, Nuxt, Next.js, etc.)
 
@@ -19,7 +20,7 @@ light --version
 
 **Expected output**: Version number confirming installation
 
-## Step 2: Initialize Proxy Configuration
+## Step 2: Initialize Project Configuration
 
 ```bash
 # In your existing project directory
@@ -27,49 +28,81 @@ cd my-awesome-app
 light init
 ```
 
+**Interactive prompts**:
+- Project name (defaults to directory name)
+- ACME email (for Let's Encrypt SSL certificates)
+  - Stored in `~/.lightstack/config.yml` (user config, NOT in project)
+  - Used across all your projects
+
 **What happens**:
-- Creates `light.config.yaml` with proxy configuration
-- Generates Traefik configuration for routing
-- Sets up certificate directories
+- Creates `light.config.yml` with project configuration (NO secrets/PII)
+- Generates Dockerfile for production builds
+- Generates Docker Compose files (base, development, production)
+- Installs mkcert and generates local SSL certificates
+- Saves ACME email to user config (not committed to git)
 
 **Expected files created**:
 ```
+~/.lightstack/
+└── config.yml                          # ACME email (PII, not in project)
+
 my-awesome-app/
-├── light.config.yaml
+├── light.config.yml                    # Project config (NO secrets)
+├── Dockerfile                          # Production build instructions
 └── .light/
-    ├── docker-compose.yml      # Traefik proxy only
-    ├── docker-compose.dev.yml  # Development overrides
-    ├── traefik/               # Dynamic routing configs
-    └── certs/                 # SSL certificates (created on first run)
+    ├── docker-compose.yml              # Base Traefik configuration
+    ├── docker-compose.development.yml  # Dev overrides (mkcert, proxies)
+    ├── docker-compose.production.yml   # Prod overrides (full stack)
+    ├── traefik/                        # Dynamic routing configs
+    └── certs/                          # SSL certificates
 ```
 
-## Step 3: Start the Proxy
+## Step 3: Start Local Infrastructure
 
+**Option A: Standard Mode** (proxy only):
 ```bash
 light up
 ```
 
 **What happens**:
 - Validates Docker is running
-- Starts Traefik proxy container only
+- Starts Traefik proxy container
 - Generates SSL certificates via mkcert
-- Sets up routing configuration
+- Sets up routing to localhost services
+
+**Option B: Self-Hosted Supabase Mode** (complete stack - RECOMMENDED):
+```bash
+# First time: Initialize Supabase project
+supabase init
+
+# Start complete self-hosted stack
+light up
+```
+
+**What happens**:
+- Auto-detects Supabase project (supabase/ directory)
+- Starts Traefik proxy + complete Supabase stack
+- Deploys: PostgreSQL, Auth, API, Storage, Studio, Realtime
+- Applies database migrations automatically
+- Generates secure secrets
+
+**Note**: This is the primary use case for Lightstack - deploying your own Supabase instance
 
 **Expected output**:
 ```
-🚀 Starting local proxy...
-✅ Proxy started
+🚀 Starting local infrastructure...
+✅ Local infrastructure started
 
-Ready to proxy:
-  ✓ https://app.lvh.me          → localhost:3000
-  ✓ https://router.lvh.me       → Traefik routing
+Services running:
+  ✓ https://app.lvh.me          → localhost:3000 (your app)
+  ✓ https://api.lvh.me           → Supabase API
+  ✓ https://studio.lvh.me        → Supabase Studio
+  ✓ https://router.lvh.me        → Traefik dashboard
 
 Start your app:
   npm run dev
-  yarn dev
-  bun dev
 
-Stop proxy with: light down
+Stop with: light down
 ```
 
 ## Step 4: Start Your App
@@ -94,20 +127,15 @@ Open your browser and visit:
    - Shows routing configuration
    - Service health status
 
-**With Supabase** (if you have it running):
-```bash
-# In another terminal
-supabase start
-```
-
-Then visit:
-- **https://api.lvh.me** - Supabase API
-- **https://studio.lvh.me** - Supabase Studio
+**If using self-hosted Supabase**:
+- **https://api.lvh.me** - Supabase API (complete self-hosted stack)
+- **https://studio.lvh.me** - Supabase Studio (database management)
 
 **Troubleshooting**:
 - If lvh.me domains don't resolve, check your DNS settings (should work automatically)
 - If SSL warnings appear, run `mkcert -install` manually
 - If proxy fails to start, check `light logs` for details
+- If containers keep restarting, check `light logs <service-name>` for specific errors
 
 ## Step 6: Develop Normally
 
@@ -116,35 +144,104 @@ Then visit:
 3. Access everything via nice HTTPS URLs
 4. No containers slowing you down!
 
-## Step 7: Deploy to Production (Optional)
+## Step 7: Configure Production Target
 
-Now that you have production-grade patterns working locally, deploy with identical infrastructure:
+Add your production deployment target:
 
 ```bash
-# Configure production deployment target
-# Edit light.config.yaml to add:
-deployments:
-  - name: production
-    host: your-server.com
-    domain: yourdomain.com
-    ssl:
-      enabled: true
-      provider: letsencrypt
-      email: you@example.com
-
-# Deploy with identical infrastructure
-light deploy production
+light env add production
 ```
 
-**What happens:**
-- Same Traefik configuration, different target (your server instead of localhost)
-- Same SSL approach (Let's Encrypt instead of mkcert)
-- Same routing patterns (functional subdomains on your domain)
-- Same service discovery (Docker containers instead of localhost processes)
+**Interactive prompts**:
+- Domain (public domain): `yourdomain.com`
+- SSH host (defaults to domain): `yourdomain.com`
+- SSH user: `ubuntu`
+- SSH port: `22`
+- Enable SSL: `Yes`
+- SSL provider: `letsencrypt`
+- DNS provider (for Let's Encrypt): `cloudflare` (or route53, etc.)
+- DNS API key: `******************`
 
-**Result:** Your app is live with identical infrastructure patterns to development.
+**What gets saved where**:
+- Domain, host, user, port, DNS provider → `light.config.yml` (committed)
+- DNS API key → `.env` (gitignored)
+- ACME email → Already in `~/.lightstack/config.yml` from Step 2
 
-## Step 8: Stop Local Infrastructure (When Done)
+## Step 8: Test Production Stack Locally
+
+Before deploying to remote server, test the complete production stack on your laptop:
+
+```bash
+light up production
+```
+
+**What happens**:
+1. Checks if Supabase CLI is running → Prompts to stop if needed
+2. Reads production configuration from `docker-compose.production.yml`
+3. Builds your app using Dockerfile
+4. Starts complete production stack locally:
+   - PostgreSQL container (not Supabase CLI)
+   - All 8 Supabase services (containerized)
+   - Your containerized app (production build)
+   - Traefik with Let's Encrypt DNS challenge
+5. Let's Encrypt validates via DNS → Issues **real certificate** for `*.local.lightstack.dev`
+6. Applies database migrations
+
+**Access your local production stack**:
+- `https://app.local.lightstack.dev` → Your containerized app (production build)
+- `https://api.local.lightstack.dev` → Supabase API (self-hosted)
+- `https://studio.local.lightstack.dev` → Supabase Studio
+
+**This is IDENTICAL to production**, just different domain.
+
+**Why test locally**:
+- Verify production configuration before remote deployment
+- Debug container issues without touching production servers
+- Validate migrations and Dockerfile builds
+- Test with real Let's Encrypt certificates
+
+## Step 9: Deploy to Production
+
+Tag your release and deploy:
+
+```bash
+git tag v1.0.0
+git push --tags
+light deploy production --tag v1.0.0
+```
+
+**Safety prompt**:
+```
+Deploy to production? [y/N]
+```
+You must explicitly confirm.
+
+**What happens on first deploy**:
+1. SSH to production server
+2. Clone repository to `/opt/my-awesome-app`
+3. Checkout git tag `v1.0.0`
+4. Check for `.env` on server
+5. If missing → Prompt for DNS_API_KEY and generate production secrets
+6. Save all secrets to server's `.env` (never copied from local)
+7. Run: `docker compose -f .light/docker-compose.yml -f .light/docker-compose.production.yml up -d`
+8. Apply database migrations
+9. Health checks
+
+**What happens on subsequent deploys**:
+1. SSH to server
+2. `git fetch && git checkout v1.1.0`
+3. `.env` already exists (from first deploy)
+4. Rebuild and restart containers
+5. Apply new migrations
+
+**Access your production app**:
+- `https://yourdomain.com` → Your app
+- `https://api.yourdomain.com` → Supabase API
+- `https://studio.yourdomain.com` → Supabase Studio
+
+**Result:** Identical infrastructure from local development to production.
+
+## Step 10: Stop Local Infrastructure (When Done)
 
 ```bash
 light down
@@ -186,18 +283,18 @@ npm run dev
 yarn build
 npm test
 
-# BaaS services (unchanged)
-supabase start
-supabase db reset
-firebase emulators:start
+# Database migrations (using Supabase CLI)
+supabase migration new add_users_table
+supabase db push  # Applied automatically by light up production
 
 # Git workflow (unchanged)
 git add . && git commit -m "Add feature"
 git push
 
-# Lightstack adds production-grade infrastructure
-light up              # Start local infrastructure
-light deploy prod     # Deploy with same infrastructure
+# Lightstack orchestrates infrastructure
+light up                    # Start local development stack
+light up production         # Test production stack locally
+light deploy production     # Deploy to remote server (coming soon)
 ```
 
 ## Validation Checklist
@@ -205,25 +302,31 @@ light deploy prod     # Deploy with same infrastructure
 After completing this quickstart, you should have:
 
 - ✅ Lightstack CLI installed and working
-- ✅ Production-grade infrastructure running locally
+- ✅ Local infrastructure running (proxy or full self-hosted BaaS)
 - ✅ Your app accessible via `https://app.lvh.me` with real SSL
+- ✅ (Optional) Self-hosted Supabase stack with database migrations
+- ✅ (Optional) Production stack tested locally via `light up production`
 - ✅ Understanding of dev/prod parity workflow
-- ✅ (Optional) Production deployment with identical infrastructure
 
 ## What Lightstack Does
 
-**Development-to-production infrastructure orchestrator:**
+**Complete self-hosted Supabase deployment platform:**
 - ✅ Production-grade local development (HTTPS, reverse proxy, service routing)
+- ✅ Self-hosted Supabase deployment (PostgreSQL, Auth, API, Storage, Studio)
+- ✅ Automatic database migrations (integrates Supabase CLI)
+- ✅ Local production testing (`light up production`)
 - ✅ Identical infrastructure patterns from dev to production
-- ✅ Dev/prod parity (same SSL, same routing, same service discovery)
+- ✅ Dev/prod parity (same containers, same SSL, same routing)
 - ✅ Infrastructure as code (readable Docker Compose configurations)
+- ✅ Cost savings ($25-$2900/month hosted Supabase → $20-200/month self-hosted)
 
 ## What Lightstack Does NOT Do
 
-**Focused scope - infrastructure only:**
+**Focused scope - Supabase infrastructure orchestration only:**
 - ❌ Replace your dev server (`npm run dev` stays the same)
+- ❌ Replace Supabase CLI for migrations (we integrate it, not wrap it)
 - ❌ Replace your deployment platform (works with any Docker-compatible server)
-- ❌ Replace your BaaS tools (orchestrates them, doesn't wrap them)
+- ❌ Support other BaaS platforms yet (Supabase-only for now - YAGNI)
 - ❌ Replace complex container orchestration (use Kubernetes for that)
 
 ## Getting Help

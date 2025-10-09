@@ -1,0 +1,9 @@
+# Official Supabase Docker Stack
+# Source: https://github.com/supabase/supabase/tree/master/docker
+# Commit: 75962742048c55870b3d077cb7cb4b6f0b5ab33f
+# Date: 2025-10-02
+# 
+# This is the official Supabase self-hosting stack, bundled with Lightstack CLI.
+# We pin this version to ensure compatibility with our deployment flow.
+# 
+# To update: Manually test new Supabase releases and update these files.
