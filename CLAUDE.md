@@ -1,4 +1,4 @@
-# Claude Code Context: Lightstack CLI
+﻿# Claude Code Context: Lightstack CLI
 
 ## Project Overview
 
