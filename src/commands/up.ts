@@ -8,6 +8,7 @@ import { getProjectConfig, type ServiceConfig } from '../utils/config.js';
 import { generateSupabaseSecrets, generateSupabaseEnvFile } from '../utils/supabase-stack.js';
 import { getSupabasePorts } from '../utils/supabase-config.js';
 import { getAcmeEmail } from '../utils/user-config.js';
+import { getDevCommand } from '../utils/package-manager.js';
 
 interface UpOptions {
   env?: string;
@@ -319,8 +320,9 @@ function checkEnvironment(env: string) {
 
   // Check if .env file exists (informational only)
   if (!existsSync('.env')) {
-    console.log(chalk.blue('ℹ'), 'No .env file found. Using built-in defaults (PROJECT_NAME, APP_PORT=3000).');
-    console.log(chalk.blue('ℹ'), 'Create a .env file only if you need custom environment variables.');
+    const projectConfig = getProjectConfig();
+    console.log(chalk.blue('ℹ'), `No .env file found. Using built-in defaults (PROJECT_NAME=${projectConfig.name}, APP_PORT=3000).`);
+    console.log(chalk.blue('ℹ'), 'Create a .env file if you need custom environment variables.');
     console.log(); // Empty line for spacing
   }
 
@@ -776,36 +778,33 @@ function runSupabaseMigrations(_projectName: string, env: string): void {
 }
 
 function showRouterStatus(projectConfig: ReturnType<typeof getProjectConfig>, env: string): void {
-  console.log('\n' + chalk.bold('Router ready:'));
+  console.log('\n' + chalk.bold('Services ready:'));
 
   // Get deployment config for domain resolution
   const deployment = projectConfig.deployments?.find(d => d.name === env);
   const appDomain = getAppDomain(deployment);
 
-  // Show configured services
+  // Show configured services with descriptions
   projectConfig.services.forEach(service => {
     const url = env === 'development'
       ? `https://${service.name}.lvh.me`
       : `https://${service.name}.${appDomain}`;
-    const localUrl = env === 'development'
-      ? `localhost:${service.port}`
-      : 'Docker container';
-    console.log(chalk.green('  ✓'), `${url.padEnd(35)} → ${localUrl}`);
+    const description = 'Your application';
+    console.log(chalk.green('  ✓'), `${url.padEnd(35)} → ${description}`);
   });
 
-  // Show BaaS URLs
+  // Show BaaS URLs with descriptions
   if (env === 'development') {
     const detectedServices = detectBaaSServices();
     if (detectedServices.includes('Supabase')) {
-      const supabasePorts = getSupabasePorts();
-      console.log(chalk.green('  ✓'), `${'https://api.lvh.me'.padEnd(35)} → localhost:${supabasePorts.api}`);
-      console.log(chalk.green('  ✓'), `${'https://studio.lvh.me'.padEnd(35)} → localhost:${supabasePorts.studio}`);
+      console.log(chalk.green('  ✓'), `${'https://api.lvh.me'.padEnd(35)} → Supabase API`);
+      console.log(chalk.green('  ✓'), `${'https://studio.lvh.me'.padEnd(35)} → Supabase Studio`);
     }
   } else {
     // For production environments, show self-hosted Supabase URLs
     const apiDomain = getApiDomain(deployment);
     const studioDomain = getStudioDomain(deployment);
-    console.log(chalk.green('  ✓'), `https://${apiDomain}`.padEnd(35) + ' → Kong API Gateway');
+    console.log(chalk.green('  ✓'), `https://${apiDomain}`.padEnd(35) + ' → Supabase API');
     console.log(chalk.green('  ✓'), `https://${studioDomain}`.padEnd(35) + ' → Supabase Studio');
   }
 
@@ -814,10 +813,10 @@ function showRouterStatus(projectConfig: ReturnType<typeof getProjectConfig>, en
     console.log(chalk.green('  ✓'), `${'https://router.lvh.me'.padEnd(35)} → Router dashboard`);
   }
 
-  console.log('\n' + chalk.bold('Start your app:'));
-  console.log('  ' + chalk.cyan('npm run dev'));
+  console.log('\n' + chalk.bold('Next steps:'));
+  console.log('  Start your app:  ' + chalk.cyan(getDevCommand()));
 
-  console.log('\n' + chalk.bold('Manage router:'));
+  console.log('\n' + chalk.bold('Manage:'));
   console.log('  Restart:  ' + chalk.cyan('light restart'));
   console.log('  Stop:     ' + chalk.cyan('light down'));
 }

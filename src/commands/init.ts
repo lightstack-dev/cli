@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import yaml from 'js-yaml';
 import type { ProjectConfig } from '../utils/config.js';
+import { getDevCommand } from '../utils/package-manager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -65,10 +66,8 @@ export async function initCommand(projectName?: string, options: InitOptions = {
 
     console.log('\n' + chalk.bold('Next steps:'));
     console.log('  Start router:    ' + chalk.cyan('light up'));
-    console.log('  Start your app:  ' + chalk.cyan('npm run dev'));
+    console.log('  Start your app:  ' + chalk.cyan(getDevCommand()));
     console.log('');
-    console.log('  Your app:        ' + chalk.cyan('https://app.lvh.me'));
-    console.log('  Router:          ' + chalk.cyan('https://router.lvh.me'));
 
   } catch (error) {
     console.error(chalk.red('✗'), error instanceof Error ? error.message : 'Unknown error');
