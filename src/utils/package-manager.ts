@@ -1,5 +1,6 @@
-import { existsSync, statSync } from 'fs';
+import { existsSync, statSync, readFileSync } from 'fs';
 import { join, dirname, parse } from 'path';
+import { execSync } from 'child_process';
 
 type PackageManager = 'npm' | 'yarn' | 'pnpm' | 'bun';
 
@@ -77,4 +78,55 @@ export function getDevCommand(): string {
     case 'bun':
       return 'bun dev';
   }
+}
+
+/**
+ * Check if Supabase CLI is available and return the command to run it
+ * Returns null if Supabase CLI is not available
+ *
+ * Strategy:
+ * 1. Check if 'supabase' is in package.json devDependencies
+ * 2. If yes, use package manager's run command (bun x, npx, etc.)
+ * 3. If no, try global 'supabase' command
+ * 4. Return null if neither works
+ */
+export function getSupabaseCli(): string | null {
+  // Check if supabase is in devDependencies
+  if (existsSync('package.json')) {
+    try {
+      const packageJson = JSON.parse(readFileSync('package.json', 'utf-8')) as {
+        devDependencies?: Record<string, string>;
+        dependencies?: Record<string, string>;
+      };
+      const hasSupabase = packageJson.devDependencies?.supabase || packageJson.dependencies?.supabase;
+
+      if (hasSupabase) {
+        // Supabase is installed as dependency, use package manager
+        const manager = detectPackageManager();
+
+        switch (manager) {
+          case 'bun':
+            return 'bun x supabase';
+          case 'pnpm':
+            return 'pnpm dlx supabase';
+          case 'yarn':
+            return 'yarn supabase';
+          case 'npm':
+            return 'npx supabase';
+        }
+      }
+    } catch {
+      // Failed to parse package.json, continue to global check
+    }
+  }
+
+  // Try global supabase command
+  try {
+    execSync('supabase --version', { stdio: 'ignore' });
+    return 'supabase';
+  } catch {
+    // Not available globally
+  }
+
+  return null;
 }

@@ -8,7 +8,7 @@ import { getProjectConfig, type ServiceConfig } from '../utils/config.js';
 import { generateSupabaseSecrets, generateSupabaseEnvFile } from '../utils/supabase-stack.js';
 import { getSupabasePorts } from '../utils/supabase-config.js';
 import { getAcmeEmail } from '../utils/user-config.js';
-import { getDevCommand } from '../utils/package-manager.js';
+import { getDevCommand, getSupabaseCli } from '../utils/package-manager.js';
 
 interface UpOptions {
   env?: string;
@@ -98,22 +98,22 @@ export async function upCommand(options: UpOptions = {}) {
     } else {
       console.log(chalk.blue('ℹ'), 'Setting up production Supabase stack...');
 
-      // Validate prerequisites for production Supabase deployment
+      // Validate prerequisites for Supabase stack deployment
       if (!existsSync('supabase')) {
         throw new Error(
           'No Supabase project found.\n\n' +
-          'Production deployment requires a Supabase project.\n' +
+          'Supabase stack requires a Supabase project.\n' +
           'See: https://supabase.com/docs/guides/local-development'
         );
       }
 
       // Check for Supabase CLI
-      try {
-        execSync('supabase --version', { stdio: 'ignore' });
-      } catch {
+      const supabaseCli = getSupabaseCli();
+      if (!supabaseCli) {
         throw new Error(
           'Supabase CLI not installed.\n\n' +
-          'Production deployment requires the Supabase CLI for migrations.\n' +
+          'Supabase stack deployment requires the Supabase CLI for migrations.\n' +
+          'Install: npm install -g supabase (or add as dev dependency)\n' +
           'See: https://supabase.com/docs/guides/local-development'
         );
       }
@@ -251,7 +251,10 @@ export async function upCommand(options: UpOptions = {}) {
 
     // Run database migrations for production Supabase stacks
     if (env !== 'development' && existsSync('supabase')) {
-      runSupabaseMigrations(projectConfig.name, env);
+      const supabaseCli = getSupabaseCli();
+      if (supabaseCli) {
+        runSupabaseMigrations(projectConfig.name, env, supabaseCli);
+      }
     }
 
     showRouterStatus(projectConfig, env);
@@ -729,7 +732,7 @@ function validateContainerStatus(
   };
 }
 
-function runSupabaseMigrations(_projectName: string, env: string): void {
+function runSupabaseMigrations(_projectName: string, env: string, supabaseCli: string): void {
   console.log(chalk.blue('\nℹ'), 'Applying database migrations...');
 
   // Check if migrations directory exists
@@ -753,11 +756,11 @@ function runSupabaseMigrations(_projectName: string, env: string): void {
     // Build database URL
     const dbUrl = `postgresql://postgres:${password}@localhost:5432/postgres`;
 
-    console.log(chalk.blue('ℹ'), 'Running: supabase db push');
+    console.log(chalk.blue('ℹ'), `Running: ${supabaseCli} db push`);
     console.log(chalk.gray('  Database: localhost:5432'));
 
-    // Run migrations
-    execSync(`supabase db push --db-url "${dbUrl}"`, {
+    // Run migrations using detected Supabase CLI command
+    execSync(`${supabaseCli} db push --db-url "${dbUrl}"`, {
       stdio: 'inherit',
       env: { ...process.env }
     });
@@ -766,7 +769,7 @@ function runSupabaseMigrations(_projectName: string, env: string): void {
   } catch (error) {
     console.log(chalk.yellow('\n!'), 'Failed to apply migrations');
     console.log(chalk.blue('ℹ'), 'You can apply them manually with:');
-    console.log(chalk.cyan(`  supabase db push --db-url "postgresql://postgres:PASSWORD@localhost:5432/postgres"`));
+    console.log(chalk.cyan(`  ${supabaseCli} db push --db-url "postgresql://postgres:PASSWORD@localhost:5432/postgres"`));
     console.log(chalk.gray('  (Replace PASSWORD with ${env.toUpperCase()}_POSTGRES_PASSWORD from .env)\n'));
   }
 }
