@@ -26,9 +26,9 @@ description: "Task list for Separate Development and Deployment Workflows"
 
 **Purpose**: Project initialization and basic structure for refactoring
 
-- [ ] T001 Create new utility files: `src/utils/docker.ts` for mode detection and Docker command builders
-- [ ] T002 [P] Create new utility file: `src/utils/dockerfile.ts` for Dockerfile template generation
-- [ ] T003 [P] Create template directory and Dockerfile template: `src/templates/Dockerfile` with multi-stage Node.js pattern from research.md
+- [X] T001 Create new utility files: `src/utils/docker.ts` for mode detection and Docker command builders
+- [X] T002 [P] Create new utility file: `src/utils/dockerfile.ts` for Dockerfile template generation
+- [X] T003 [P] Create template directory and Dockerfile template: `src/templates/Dockerfile` with multi-stage Node.js pattern from research.md
 
 ---
 
@@ -38,14 +38,14 @@ description: "Task list for Separate Development and Deployment Workflows"
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Implement `determineMode(env: string): Mode` function in `src/utils/docker.ts` (returns 'development' | 'deployment')
-- [ ] T005 Implement `getComposeFiles(env: string): string[]` function in `src/utils/docker.ts` (returns correct compose file list based on mode)
-- [ ] T006 [P] Implement `buildDockerCommand()` utility in `src/utils/docker.ts` for constructing docker compose commands
-- [ ] T007 [P] Implement `generateDockerfile(config: DockerfileConfig): string` in `src/utils/dockerfile.ts` using multi-stage pattern
-- [ ] T008 Refactor `upCommand()` in `src/commands/up.ts` to add early mode detection and branching logic (lines 48-50)
-- [ ] T009 Extract `commonPrerequisiteChecks(env: string)` from current `upCommand()` in `src/commands/up.ts` (checks Docker, config, environment exists)
-- [ ] T009a Add `--ca <provider>` flag to up command schema in `src/commands/up.ts` using Commander.js `.option()` with choices validation ['mkcert', 'letsencrypt']
-- [ ] T009b Implement `validateSSLProvider(provider: string): SSLProvider` utility in `src/utils/docker.ts` to validate and return typed SSL provider enum
+- [X] T004 Implement `determineMode(env: string): Mode` function in `src/utils/docker.ts` (returns 'development' | 'deployment')
+- [X] T005 Implement `getComposeFiles(env: string): string[]` function in `src/utils/docker.ts` (returns correct compose file list based on mode)
+- [X] T006 [P] Implement `buildDockerCommand()` utility in `src/utils/docker.ts` for constructing docker compose commands
+- [X] T007 [P] Implement `generateDockerfile(config: DockerfileConfig): string` in `src/utils/dockerfile.ts` using multi-stage pattern
+- [X] T008 Refactor `upCommand()` in `src/commands/up.ts` to add early mode detection and branching logic (lines 48-50)
+- [X] T009 Extract `commonPrerequisiteChecks(env: string)` from current `upCommand()` in `src/commands/up.ts` (checks Docker, config, environment exists)
+- [X] T009a Add `--ca <provider>` flag to up command schema in `src/commands/up.ts` using Commander.js `.option()` with choices validation ['mkcert', 'letsencrypt']
+- [X] T009b Implement `validateSSLProvider(provider: string): SSLProvider` utility in `src/utils/docker.ts` to validate and return typed SSL provider enum
 
 **Checkpoint**: Foundation ready - user story implementation can now begin
 

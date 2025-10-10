@@ -55,8 +55,9 @@ program
   .description('Start infrastructure locally')
   .argument('[environment]', 'Target environment (development, production, etc.)', 'development')
   .option('--detach', 'Run in background', true)
+  .option('--ca <provider>', 'SSL certificate provider', 'mkcert')
   .action(async (environment: string, options: unknown) => {
-    await upCommand({ env: environment, ...(options as { detach?: boolean }) });
+    await upCommand({ env: environment, ...(options as { detach?: boolean; ca?: string }) });
   });
 
 program

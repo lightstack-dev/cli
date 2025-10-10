@@ -9,10 +9,12 @@ import { generateSupabaseSecrets, generateSupabaseEnvFile } from '../utils/supab
 import { getSupabasePorts } from '../utils/supabase-config.js';
 import { getAcmeEmail } from '../utils/user-config.js';
 import { getDevCommand, getSupabaseCli } from '../utils/package-manager.js';
+// import { determineMode } from '../utils/docker.js'; // TODO: Will be used in T010-T015
 
 interface UpOptions {
   env?: string;
   detach?: boolean;
+  ca?: string;
 }
 
 // Helper functions to get domains with proper fallbacks
@@ -50,16 +52,19 @@ export async function upCommand(options: UpOptions = {}) {
     const env = options.env || 'development';
     const detach = options.detach !== false; // Default to true
 
+    // Determine mode early - this drives all downstream logic
+    // TODO: This will be used in T010-T015 for mode-based branching
+    // const mode = determineMode(env);
+
     // Load project configuration
     const projectConfig = getProjectConfig();
 
-    // Check prerequisites
-    checkPrerequisites();
-
-    // Check if environment is configured for non-development
-    if (env !== 'development') {
-      const envExists = projectConfig.deployments?.some(d => d.name === env);
-      if (!envExists) {
+    // Check common prerequisites (Docker, config, environment exists)
+    try {
+      commonPrerequisiteChecks(env);
+    } catch (error) {
+      // If environment doesn't exist, offer to configure it interactively
+      if (error instanceof Error && error.message.includes('not configured') && env !== 'development') {
         console.log(chalk.yellow('!'), `Environment '${env}' is not configured.`);
 
         const shouldConfigure = await confirm({
@@ -84,6 +89,9 @@ export async function upCommand(options: UpOptions = {}) {
           console.log('\nTo configure later, run:', chalk.cyan(`light env add ${env}`));
           process.exit(0);
         }
+      } else {
+        // For other errors, rethrow
+        throw error;
       }
     }
 
@@ -265,7 +273,10 @@ export async function upCommand(options: UpOptions = {}) {
   }
 }
 
-function checkPrerequisites() {
+/**
+ * Common prerequisite checks for both development and deployment modes
+ */
+function commonPrerequisiteChecks(env: string) {
   // Check if project is initialized
   if (!existsSync('light.config.yml') && !existsSync('light.config.yml')) {
     throw new Error('No Lightstack project found. Run "light init" first.');
@@ -281,6 +292,18 @@ function checkPrerequisites() {
   // Check if required Docker Compose files exist
   if (!existsSync('.light/docker-compose.yml')) {
     throw new Error('Docker Compose files not found. Run "light init" to regenerate them.');
+  }
+
+  // Check if environment is configured for non-development
+  if (env !== 'development') {
+    const projectConfig = getProjectConfig();
+    const envExists = projectConfig.deployments?.some(d => d.name === env);
+    if (!envExists) {
+      throw new Error(
+        `Environment '${env}' is not configured.\n` +
+        `Run: light env add ${env}`
+      );
+    }
   }
 }
 
