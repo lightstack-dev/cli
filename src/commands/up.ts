@@ -98,12 +98,15 @@ export async function upCommand(options: UpOptions = {}) {
     // Check environment setup
     checkEnvironment(env);
 
-    // Setup SSL certificates for development
+    // Branch based on environment mode
     if (env === 'development') {
-      setupLocalSsl();
-      // Generate BaaS proxy configs for development (proxy to Supabase CLI)
-      generateBaaSProxyConfigs();
-    } else {
+      // Development mode: Traefik proxy only, routes to localhost
+      deployDevMode(projectConfig, options);
+      return;
+    }
+
+    // Deployment mode: Full stack including Supabase
+    {
       console.log(chalk.blue('ℹ'), 'Setting up production Supabase stack...');
 
       // Validate prerequisites for Supabase stack deployment
@@ -271,6 +274,104 @@ export async function upCommand(options: UpOptions = {}) {
     console.error(chalk.red('✗'), error instanceof Error ? error.message : 'Unknown error');
     process.exit(1);
   }
+}
+
+/**
+ * Deploy development mode: Traefik proxy only, routes to localhost services
+ */
+function deployDevMode(projectConfig: ReturnType<typeof getProjectConfig>, options: UpOptions) {
+  const env = 'development';
+  const detach = options.detach !== false;
+
+  // Setup SSL certificates for development
+  setupLocalSsl();
+
+  // Generate BaaS proxy configs for development (proxy to Supabase CLI)
+  generateBaaSProxyConfigs();
+
+  // Check if infrastructure is already running
+  const composeFiles = getComposeFiles(env);
+  const expectedContainers = getExpectedContainers(projectConfig.name, composeFiles);
+  const existingStatus = checkInfrastructureStatus(projectConfig.name, env);
+
+  if (existingStatus.hasRunningContainers) {
+    // Validate that all expected containers are running
+    const validation = validateContainerStatus(expectedContainers, existingStatus);
+
+    if (validation.valid) {
+      console.log(chalk.green('✓'), `Lightstack infrastructure is already running (${env})`);
+      // Show same helpful output as when starting fresh
+      showRouterStatus(projectConfig, env);
+      return;
+    } else {
+      console.log(chalk.yellow('!'), 'Infrastructure is incomplete, restarting...');
+      if (validation.missing.length > 0) {
+        console.log(chalk.gray('  Missing:'), validation.missing.join(', '));
+      }
+      if (validation.failed.length > 0) {
+        console.log(chalk.gray('  Failed:'), validation.failed.join(', '));
+      }
+    }
+  }
+
+  // Get deployment config and domain for this environment
+  const deployment = projectConfig.deployments?.find(d => d.name === env);
+  const appDomain = getAppDomain(deployment);
+
+  // Build Docker Compose command
+  const dockerCmd = buildDockerCommand(composeFiles, { detach, projectName: projectConfig.name, env, domain: appDomain });
+
+  console.log(chalk.blue('ℹ'), 'Starting router...');
+
+  // Execute Docker Compose with error handling
+  try {
+    execSync(dockerCmd, {
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        DOMAIN: appDomain,
+        PROJECT_NAME: projectConfig.name
+      }
+    });
+  } catch (error) {
+    console.log(chalk.yellow('\n!'), 'Docker Compose encountered an issue during startup');
+    console.log(chalk.blue('ℹ'), 'Checking container status...\n');
+
+    // Check which containers are actually running
+    const status = checkInfrastructureStatus(projectConfig.name, env);
+
+    if (status.hasRunningContainers) {
+      console.log(chalk.yellow('!'), 'Some containers started successfully:');
+      status.running.forEach(container => {
+        console.log(chalk.green('  ✓'), container);
+      });
+
+      if (status.failed.length > 0) {
+        console.log(chalk.yellow('\n!'), 'Some containers failed to start:');
+        status.failed.forEach(container => {
+          console.log(chalk.red('  ✗'), container);
+        });
+      }
+
+      console.log(chalk.blue('\nℹ Recovery options:'));
+      console.log('  1. Try running the command again:', chalk.cyan(`light up ${env}`));
+      console.log('  2. Check logs for failed containers:', chalk.cyan('light logs'));
+      console.log('  3. Stop and restart:', chalk.cyan('light down && light up ' + env));
+
+      // Don't exit with error if some containers are running
+      return;
+    } else {
+      console.log(chalk.red('✗'), 'No containers are running');
+      console.log(chalk.blue('\nℹ Try:'));
+      console.log('  1. Check Docker Desktop is running');
+      console.log('  2. Clean up and retry:', chalk.cyan('light down && light up ' + env));
+      throw new Error('Failed to start containers');
+    }
+  }
+
+  console.log(chalk.green('✓'), 'Router started');
+
+  showRouterStatus(projectConfig, env);
 }
 
 /**
@@ -834,7 +935,12 @@ function showRouterStatus(projectConfig: ReturnType<typeof getProjectConfig>, en
   }
 
   console.log('\n' + chalk.bold('Next steps:'));
-  console.log('  Start your app: ' + chalk.cyan(getDevCommand()));
+
+  // Only show "Start your app" message in development mode
+  // In deployment mode, the app is containerized and already running
+  if (env === 'development') {
+    console.log('  Start your app: ' + chalk.cyan(getDevCommand()));
+  }
 
   console.log('\n' + chalk.bold('Manage Lightstack infrastructure:'));
   console.log('  Restart: ' + chalk.cyan('light restart'));

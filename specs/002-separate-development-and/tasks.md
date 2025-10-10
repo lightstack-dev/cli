@@ -59,12 +59,12 @@ description: "Task list for Separate Development and Deployment Workflows"
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] Extract development mode logic (lines 94-168 from current `up.ts`) into new `deployDevMode(options: UpOptions)` function in `src/commands/up.ts`
-- [ ] T011 [US1] Update `deployDevMode()` to call `setupMkcert()` for SSL certificate generation
-- [ ] T012 [US1] Update `deployDevMode()` to call `generateBaaSProxyConfigs()` for Traefik dynamic.yml generation (file-based routing)
-- [ ] T013 [US1] Update `deployDevMode()` to use `getComposeFiles('development')` and `buildDockerCommand()` from utils
-- [ ] T014 [US1] Update `showRouterStatus()` in `src/commands/up.ts` to show "Start your app: <detected-package-manager> run dev" message ONLY when env === 'development'
-- [ ] T015 [US1] Update `upCommand()` to call `deployDevMode(options)` when mode === 'development'
+- [X] T010 [US1] Extract development mode logic (lines 94-168 from current `up.ts`) into new `deployDevMode(options: UpOptions)` function in `src/commands/up.ts`
+- [X] T011 [US1] Update `deployDevMode()` to call `setupMkcert()` for SSL certificate generation
+- [X] T012 [US1] Update `deployDevMode()` to call `generateBaaSProxyConfigs()` for Traefik dynamic.yml generation (file-based routing)
+- [X] T013 [US1] Update `deployDevMode()` to use `getComposeFiles('development')` and `buildDockerCommand()` from utils
+- [X] T014 [US1] Update `showRouterStatus()` in `src/commands/up.ts` to show "Start your app: <detected-package-manager> run dev" message ONLY when env === 'development'
+- [X] T015 [US1] Update `upCommand()` to call `deployDevMode(options)` when mode === 'development'
 
 **Checkpoint**: At this point, `light up` should work identically to before but with cleaner code separation
 
