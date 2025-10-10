@@ -103,7 +103,8 @@ description: "Task list for Separate Development and Deployment Workflows"
 ### Implementation for User Story 3
 
 - [ ] T025 [P] [US3] Update `initCommand()` in `src/commands/init.ts` to call `generateDockerfile()` and write to project root `Dockerfile` if it doesn't exist
-- [ ] T026 [P] [US3] Update compose file generator to rename `docker-compose.production.yml` to `docker-compose.deployment.yml` throughout codebase
+- [ ] T025a [P] [US3] Add validation in `generateDockerfile()` to check if package.json exists and has required `build` and `start` scripts; if missing, throw error with message: "Your package.json is missing required scripts. Add: \"scripts\": { \"build\": \"...\", \"start\": \"...\" }"
+- [ ] T026 [P] [US3] Update compose file generator to generate `docker-compose.deployment.yml` (replacing the old `docker-compose.production.yml` pattern) throughout codebase
 - [ ] T027 [US3] Add app service definition to `docker-compose.deployment.yml` template with Traefik labels (see research.md for YAML structure)
 - [ ] T028 [US3] Update `generateProductionTraefikConfig()` in `src/commands/up.ts` to remove app proxy to localhost (app is now containerized)
 - [ ] T029 [US3] Add Dockerfile validation check in `deployFullStackMode()` before attempting Docker Compose build
@@ -135,7 +136,7 @@ description: "Task list for Separate Development and Deployment Workflows"
 **Purpose**: Improvements that affect multiple user stories and final cleanup
 
 - [ ] T035 [P] Update `.gitignore` template generation in `src/commands/init.ts` to include `Dockerfile` in version control (NOT gitignored)
-- [ ] T036 [P] Update ALL file path references throughout codebase: `docker-compose.production.yml` → `docker-compose.deployment.yml` (verify: src/commands/*.ts, src/utils/*.ts, tests/**, documentation files, error messages, and any hardcoded strings)
+- [ ] T036 [P] Update compose file generation logic to generate `docker-compose.deployment.yml` instead of `docker-compose.production.yml` for all non-development environments; update ALL references throughout codebase (verify: src/commands/*.ts, src/utils/*.ts, tests/**, documentation files, error messages, and any hardcoded strings)
 - [ ] T037 Add JSDoc comments to new functions in `src/utils/docker.ts` and `src/utils/dockerfile.ts`
 - [ ] T038 [P] Update CLAUDE.md to reflect completed Spec 002 (remove "NOT YET IMPLEMENTED" note, update workflow examples)
 - [ ] T039 Run quickstart.md test scenarios to validate both modes work correctly

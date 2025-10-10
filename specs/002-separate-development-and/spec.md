@@ -2,7 +2,7 @@
 
 **Feature Branch**: `002-separate-development-and`
 **Created**: 2025-10-09
-**Status**: Draft
+**Status**: In Development
 **Input**: GitHub issue #17 - Separate development and deployment workflows
 
 ## User Scenarios & Testing *(mandatory)*

@@ -2,6 +2,8 @@
 
 ## Project Overview
 
+**⚠️ PRE-RELEASE STATUS**: This CLI has not been released yet (no v1.0.0). Breaking changes are expected and acceptable. Don't worry about backward compatibility - we can break anything that needs fixing.
+
 **Lightstack CLI** (`@lightstack-dev/cli`) automates self-hosting complete Supabase stacks in production. Escape Supabase Cloud costs ($25→$2,900/month) by deploying the full stack (PostgreSQL, Auth, API, Storage, Studio) to your own servers ($20-200/month) with perfect dev/prod parity.
 
 ### Core Value Proposition
