@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execSync } from 'child_process';
-import { mkdtempSync, rmSync, existsSync, readFileSync } from 'fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import yaml from 'js-yaml';
@@ -68,5 +68,45 @@ describe('light init command', () => {
 
     expect(output).toContain('initialized');
     expect(existsSync('.light/certs')).toBe(true);
+  });
+
+  it('should generate docker-compose.deployment.yml with app service', () => {
+    execSync(`${cli} init test-project`, { encoding: 'utf-8' });
+
+    // Verify deployment.yml exists (not production.yml)
+    expect(existsSync('.light/docker-compose.deployment.yml')).toBe(true);
+    expect(existsSync('.light/docker-compose.production.yml')).toBe(false);
+
+    // Verify deployment.yml contains app service
+    const deploymentContent = readFileSync('.light/docker-compose.deployment.yml', 'utf-8');
+    expect(deploymentContent).toContain('app:');
+    expect(deploymentContent).toContain('build:');
+    expect(deploymentContent).toContain('dockerfile: Dockerfile');
+    expect(deploymentContent).toContain('traefik.enable=true');
+    expect(deploymentContent).toContain('traefik.http.routers.app.rule');
+  });
+
+  it('should generate Dockerfile in project root', () => {
+    // Create a minimal package.json first (required for Dockerfile generation)
+    writeFileSync('package.json', JSON.stringify({
+      name: 'test',
+      scripts: {
+        build: 'echo build',
+        start: 'echo start'
+      }
+    }));
+
+    execSync(`${cli} init test-project`, { encoding: 'utf-8' });
+
+    // Verify Dockerfile exists in project root (not in .light/)
+    expect(existsSync('Dockerfile')).toBe(true);
+    expect(existsSync('.light/Dockerfile')).toBe(false);
+
+    // Verify Dockerfile contains multi-stage build pattern
+    const dockerfileContent = readFileSync('Dockerfile', 'utf-8');
+    expect(dockerfileContent).toContain('FROM node:');
+    expect(dockerfileContent).toContain('AS deps');
+    expect(dockerfileContent).toContain('AS builder');
+    expect(dockerfileContent).toContain('AS runner');
   });
 });

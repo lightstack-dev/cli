@@ -9,7 +9,7 @@ import { generateSupabaseSecrets, generateSupabaseEnvFile } from '../utils/supab
 import { getSupabasePorts } from '../utils/supabase-config.js';
 import { getAcmeEmail } from '../utils/user-config.js';
 import { getDevCommand, getSupabaseCli } from '../utils/package-manager.js';
-// import { determineMode } from '../utils/docker.js'; // TODO: Will be used in T010-T015
+import { detectRunningEnvironment, checkSupabaseDevEnvironment as checkSupabaseDevPorts, checkPortConflicts, validateSSLProvider, type SSLProvider } from '../utils/docker.js';
 
 interface UpOptions {
   env?: string;
@@ -50,11 +50,6 @@ interface DeploymentConfig {
 export async function upCommand(options: UpOptions = {}) {
   try {
     const env = options.env || 'development';
-    const detach = options.detach !== false; // Default to true
-
-    // Determine mode early - this drives all downstream logic
-    // TODO: This will be used in T010-T015 for mode-based branching
-    // const mode = determineMode(env);
 
     // Load project configuration
     const projectConfig = getProjectConfig();
@@ -106,169 +101,7 @@ export async function upCommand(options: UpOptions = {}) {
     }
 
     // Deployment mode: Full stack including Supabase
-    {
-      console.log(chalk.blue('ℹ'), 'Setting up production Supabase stack...');
-
-      // Validate prerequisites for Supabase stack deployment
-      if (!existsSync('supabase')) {
-        throw new Error(
-          'No Supabase project found.\n\n' +
-          'Supabase stack requires a Supabase project.\n' +
-          'See: https://supabase.com/docs/guides/local-development'
-        );
-      }
-
-      // Check for Supabase CLI
-      const supabaseCli = getSupabaseCli();
-      if (!supabaseCli) {
-        throw new Error(
-          'Supabase CLI not installed.\n\n' +
-          'Supabase stack deployment requires the Supabase CLI for migrations.\n' +
-          'Install: npm install -g supabase (or add as dev dependency)\n' +
-          'See: https://supabase.com/docs/guides/local-development'
-        );
-      }
-
-      // Check if Supabase dev environment is running
-      const supabaseDevRunning = checkSupabaseDevEnvironment();
-      if (supabaseDevRunning) {
-        console.log(chalk.yellow('!'), 'Supabase development environment is running');
-        console.log(chalk.yellow('  This conflicts with the production stack (ports, containers)\n'));
-
-        const shouldStop = await confirm({
-          message: 'Stop development environment and start production stack?',
-          default: true
-        });
-
-        if (shouldStop) {
-          console.log(chalk.blue('ℹ'), 'Stopping development environment...');
-          try {
-            execSync('supabase stop', { stdio: 'inherit' });
-
-            // Double-check all Supabase containers are stopped (supabase stop can be flaky)
-            const remainingContainers = execSync('docker ps --filter "name=supabase_" --format "{{.Names}}"', {
-              encoding: 'utf-8'
-            }).trim();
-
-            if (remainingContainers) {
-              console.log(chalk.yellow('!'), 'Some Supabase containers still running, force stopping...');
-              execSync(`docker stop ${remainingContainers.split('\n').join(' ')}`, { stdio: 'ignore' });
-            }
-          } catch (error) {
-            console.log(chalk.yellow('!'), 'Error stopping Supabase, continuing anyway...');
-          }
-          console.log();
-        } else {
-          console.log('\nCancelled. To start production stack later:');
-          console.log('  1. Stop dev:', chalk.cyan('supabase stop'));
-          console.log('  2. Start prod:', chalk.cyan(`light up ${env}`));
-          process.exit(0);
-        }
-      }
-
-      // For non-development environments, generate full Supabase stack
-      // Get ACME email from user config (stored in ~/.lightstack/config.yml)
-      const sslEmail = getAcmeEmail();
-      if (!sslEmail) {
-        console.log(chalk.yellow('!'), 'ACME email not configured');
-        console.log(chalk.blue('ℹ'), 'Run', chalk.cyan('light init'), 'to configure ACME email for Let\'s Encrypt SSL');
-        console.log('');
-      }
-
-      await generateProductionStack(projectConfig, env, sslEmail);
-    }
-
-    // Check if infrastructure is already running
-    const composeFiles = getComposeFiles(env);
-    const expectedContainers = getExpectedContainers(projectConfig.name, composeFiles);
-    const existingStatus = checkInfrastructureStatus(projectConfig.name, env);
-
-    if (existingStatus.hasRunningContainers) {
-      // Validate that all expected containers are running
-      const validation = validateContainerStatus(expectedContainers, existingStatus);
-
-      if (validation.valid) {
-        console.log(chalk.green('✓'), `Lightstack infrastructure is already running (${env})`);
-        // Show same helpful output as when starting fresh
-        showRouterStatus(projectConfig, env);
-        return;
-      } else {
-        console.log(chalk.yellow('!'), 'Infrastructure is incomplete, restarting...');
-        if (validation.missing.length > 0) {
-          console.log(chalk.gray('  Missing:'), validation.missing.join(', '));
-        }
-        if (validation.failed.length > 0) {
-          console.log(chalk.gray('  Failed:'), validation.failed.join(', '));
-        }
-      }
-    }
-
-    // Get deployment config and domain for this environment
-    const deployment = projectConfig.deployments?.find(d => d.name === env);
-    const appDomain = getAppDomain(deployment);
-
-    // Build Docker Compose command
-    const dockerCmd = buildDockerCommand(composeFiles, { detach, projectName: projectConfig.name, env, domain: appDomain });
-
-    console.log(chalk.blue('ℹ'), 'Starting router...');
-
-    // Execute Docker Compose with error handling
-    try {
-      execSync(dockerCmd, {
-        stdio: 'inherit',
-        env: {
-          ...process.env,
-          DOMAIN: appDomain,
-          PROJECT_NAME: projectConfig.name
-        }
-      });
-    } catch (error) {
-      console.log(chalk.yellow('\n!'), 'Docker Compose encountered an issue during startup');
-      console.log(chalk.blue('ℹ'), 'Checking container status...\n');
-
-      // Check which containers are actually running
-      const status = checkInfrastructureStatus(projectConfig.name, env);
-
-      if (status.hasRunningContainers) {
-        console.log(chalk.yellow('!'), 'Some containers started successfully:');
-        status.running.forEach(container => {
-          console.log(chalk.green('  ✓'), container);
-        });
-
-        if (status.failed.length > 0) {
-          console.log(chalk.yellow('\n!'), 'Some containers failed to start:');
-          status.failed.forEach(container => {
-            console.log(chalk.red('  ✗'), container);
-          });
-        }
-
-        console.log(chalk.blue('\nℹ Recovery options:'));
-        console.log('  1. Try running the command again:', chalk.cyan(`light up ${env}`));
-        console.log('  2. Check logs for failed containers:', chalk.cyan('light logs'));
-        console.log('  3. Stop and restart:', chalk.cyan('light down && light up ' + env));
-
-        // Don't exit with error if some containers are running
-        return;
-      } else {
-        console.log(chalk.red('✗'), 'No containers are running');
-        console.log(chalk.blue('\nℹ Try:'));
-        console.log('  1. Check Docker Desktop is running');
-        console.log('  2. Clean up and retry:', chalk.cyan('light down && light up ' + env));
-        throw new Error('Failed to start containers');
-      }
-    }
-
-    console.log(chalk.green('✓'), 'Router started');
-
-    // Run database migrations for production Supabase stacks
-    if (env !== 'development' && existsSync('supabase')) {
-      const supabaseCli = getSupabaseCli();
-      if (supabaseCli) {
-        runSupabaseMigrations(projectConfig.name, env, supabaseCli);
-      }
-    }
-
-    showRouterStatus(projectConfig, env);
+    await deployFullStackMode(projectConfig, env, options);
 
   } catch (error) {
     console.error(chalk.red('✗'), error instanceof Error ? error.message : 'Unknown error');
@@ -370,6 +203,245 @@ function deployDevMode(projectConfig: ReturnType<typeof getProjectConfig>, optio
   }
 
   console.log(chalk.green('✓'), 'Router started');
+
+  showRouterStatus(projectConfig, env);
+}
+
+/**
+ * Deploy full stack mode: Complete Supabase stack + containerized app
+ */
+async function deployFullStackMode(projectConfig: ReturnType<typeof getProjectConfig>, env: string, options: UpOptions) {
+  const detach = options.detach !== false;
+
+  // T018: Check for running Lightstack environments first
+  const currentEnv = detectRunningEnvironment();
+  if (currentEnv) {
+    if (currentEnv === env) {
+      // Same environment already running - show status and exit gracefully
+      console.log(chalk.green('✓'), `Lightstack infrastructure is already running (${env})`);
+      console.log('\n' + chalk.bold('Current status:'));
+      const status = checkInfrastructureStatus(projectConfig.name, env);
+      status.running.forEach(container => {
+        console.log(chalk.green('  ✓'), container);
+      });
+      console.log('\nTo restart:', chalk.cyan(`light restart ${env}`));
+      console.log('To stop:', chalk.cyan(`light down`));
+      return;
+    } else {
+      // Different environment running - prompt to switch
+      console.log(chalk.yellow('!'), `Environment '${currentEnv}' is currently running`);
+      console.log(chalk.yellow('  Only one Lightstack environment can run at a time\n'));
+
+      const shouldSwitch = await confirm({
+        message: `Stop '${currentEnv}' and start '${env}'?`,
+        default: true
+      });
+
+      if (shouldSwitch) {
+        console.log(chalk.blue('ℹ'), `Stopping '${currentEnv}'...`);
+        try {
+          // Stop current environment
+          const composeFiles = getComposeFiles(currentEnv);
+          const fileArgs = composeFiles.map(f => `-f ${f}`).join(' ');
+          execSync(`docker compose ${fileArgs} --project-name ${projectConfig.name} down`, {
+            stdio: 'inherit'
+          });
+        } catch (error) {
+          console.log(chalk.yellow('!'), 'Error stopping environment, continuing anyway...');
+        }
+        console.log();
+      } else {
+        console.log('\nCancelled. To start later:');
+        console.log('  1. Stop current:', chalk.cyan(`light down`));
+        console.log('  2. Start new:', chalk.cyan(`light up ${env}`));
+        process.exit(0);
+      }
+    }
+  }
+
+  // T018: Check if ports 80/443 are occupied by non-Lightstack processes
+  const portConflict = checkPortConflicts();
+  if (portConflict) {
+    const suggestedCommand = process.platform === 'win32'
+      ? `taskkill /PID <pid> /F`
+      : `kill <pid>`;
+    throw new Error(
+      `Ports ${portConflict.ports.join(', ')} are occupied by '${portConflict.process}'.\n\n` +
+      `Stop it first: ${suggestedCommand}\n` +
+      `Or use: light down (if it's from a previous Lightstack run)`
+    );
+  }
+
+  console.log(chalk.blue('ℹ'), 'Setting up production Supabase stack...');
+
+  // Validate prerequisites for Supabase stack deployment
+  if (!existsSync('supabase')) {
+    throw new Error(
+      'No Supabase project found.\n\n' +
+      'Supabase stack requires a Supabase project.\n' +
+      'See: https://supabase.com/docs/guides/local-development'
+    );
+  }
+
+  // Check for Supabase CLI
+  const supabaseCli = getSupabaseCli();
+  if (!supabaseCli) {
+    throw new Error(
+      'Supabase CLI not installed.\n\n' +
+      'Supabase stack deployment requires the Supabase CLI for migrations.\n' +
+      'Install: npm install -g supabase (or add as dev dependency)\n' +
+      'See: https://supabase.com/docs/guides/local-development'
+    );
+  }
+
+  // T019: Check if Supabase dev environment is running
+  const supabaseDevRunning = checkSupabaseDevPorts();
+  if (supabaseDevRunning) {
+    console.log(chalk.yellow('!'), 'Supabase CLI development environment detected (ports 54321-54324)');
+    console.log(chalk.yellow('  This conflicts with the deployment stack\n'));
+
+    const shouldStop = await confirm({
+      message: 'Stop Supabase CLI and continue with deployment stack?',
+      default: true
+    });
+
+    if (shouldStop) {
+      console.log(chalk.blue('ℹ'), 'Stopping Supabase CLI...');
+      try {
+        execSync('supabase stop', { stdio: 'inherit' });
+
+        // Double-check all Supabase containers are stopped (supabase stop can be flaky)
+        const remainingContainers = execSync('docker ps --filter "name=supabase_" --format "{{.Names}}"', {
+          encoding: 'utf-8'
+        }).trim();
+
+        if (remainingContainers) {
+          console.log(chalk.yellow('!'), 'Some Supabase containers still running, force stopping...');
+          execSync(`docker stop ${remainingContainers.split('\n').join(' ')}`, { stdio: 'ignore' });
+        }
+      } catch (error) {
+        console.log(chalk.yellow('!'), 'Error stopping Supabase CLI, continuing anyway...');
+      }
+      console.log();
+    } else {
+      console.log('\nCancelled. To start deployment stack later:');
+      console.log('  1. Stop Supabase CLI:', chalk.cyan('supabase stop'));
+      console.log('  2. Start deployment:', chalk.cyan(`light up ${env}`));
+      process.exit(0);
+    }
+  }
+
+  // T020: Determine SSL provider (mkcert by default, letsencrypt via --ca flag)
+  const sslProvider = validateSSLProvider(options.ca);
+
+  // For non-development environments, generate full Supabase stack
+  // Get ACME email from user config (stored in ~/.lightstack/config.yml)
+  const sslEmail = getAcmeEmail();
+  if (sslProvider === 'letsencrypt' && !sslEmail) {
+    console.log(chalk.yellow('!'), 'ACME email not configured');
+    console.log(chalk.blue('ℹ'), 'Run', chalk.cyan('light init'), 'to configure ACME email for Let\'s Encrypt SSL');
+    console.log('');
+  }
+
+  await generateProductionStack(projectConfig, env, sslEmail, sslProvider);
+
+  // T029: Validate Dockerfile exists before attempting Docker Compose build
+  if (!existsSync('Dockerfile')) {
+    throw new Error(
+      'No Dockerfile found in project root.\n\n' +
+      'Deployment mode requires a Dockerfile to containerize your application.\n' +
+      'Solution: Run ' + chalk.cyan('light init') + ' to generate a Dockerfile, or create one manually.'
+    );
+  }
+
+  // Check if infrastructure is already running
+  const composeFiles = getComposeFiles(env);
+  const expectedContainers = getExpectedContainers(projectConfig.name, composeFiles);
+  const existingStatus = checkInfrastructureStatus(projectConfig.name, env);
+
+  if (existingStatus.hasRunningContainers) {
+    // Validate that all expected containers are running
+    const validation = validateContainerStatus(expectedContainers, existingStatus);
+
+    if (validation.valid) {
+      console.log(chalk.green('✓'), `Lightstack infrastructure is already running (${env})`);
+      // Show same helpful output as when starting fresh
+      showRouterStatus(projectConfig, env);
+      return;
+    } else {
+      console.log(chalk.yellow('!'), 'Infrastructure is incomplete, restarting...');
+      if (validation.missing.length > 0) {
+        console.log(chalk.gray('  Missing:'), validation.missing.join(', '));
+      }
+      if (validation.failed.length > 0) {
+        console.log(chalk.gray('  Failed:'), validation.failed.join(', '));
+      }
+    }
+  }
+
+  // Get deployment config and domain for this environment
+  const deployment = projectConfig.deployments?.find(d => d.name === env);
+  const appDomain = getAppDomain(deployment);
+
+  // Build Docker Compose command
+  const dockerCmd = buildDockerCommand(composeFiles, { detach, projectName: projectConfig.name, env, domain: appDomain });
+
+  console.log(chalk.blue('ℹ'), 'Starting router...');
+
+  // Execute Docker Compose with error handling
+  try {
+    execSync(dockerCmd, {
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        DOMAIN: appDomain,
+        PROJECT_NAME: projectConfig.name
+      }
+    });
+  } catch (error) {
+    console.log(chalk.yellow('\n!'), 'Docker Compose encountered an issue during startup');
+    console.log(chalk.blue('ℹ'), 'Checking container status...\n');
+
+    // Check which containers are actually running
+    const status = checkInfrastructureStatus(projectConfig.name, env);
+
+    if (status.hasRunningContainers) {
+      console.log(chalk.yellow('!'), 'Some containers started successfully:');
+      status.running.forEach(container => {
+        console.log(chalk.green('  ✓'), container);
+      });
+
+      if (status.failed.length > 0) {
+        console.log(chalk.yellow('\n!'), 'Some containers failed to start:');
+        status.failed.forEach(container => {
+          console.log(chalk.red('  ✗'), container);
+        });
+      }
+
+      console.log(chalk.blue('\nℹ Recovery options:'));
+      console.log('  1. Try running the command again:', chalk.cyan(`light up ${env}`));
+      console.log('  2. Check logs for failed containers:', chalk.cyan('light logs'));
+      console.log('  3. Stop and restart:', chalk.cyan('light down && light up ' + env));
+
+      // Don't exit with error if some containers are running
+      return;
+    } else {
+      console.log(chalk.red('✗'), 'No containers are running');
+      console.log(chalk.blue('\nℹ Try:'));
+      console.log('  1. Check Docker Desktop is running');
+      console.log('  2. Clean up and retry:', chalk.cyan('light down && light up ' + env));
+      throw new Error('Failed to start containers');
+    }
+  }
+
+  console.log(chalk.green('✓'), 'Router started');
+
+  // Run database migrations for production Supabase stacks
+  if (env !== 'development' && existsSync('supabase')) {
+    if (supabaseCli) {
+      runSupabaseMigrations(projectConfig.name, env, supabaseCli);
+    }
+  }
 
   showRouterStatus(projectConfig, env);
 }
@@ -645,7 +717,7 @@ function generateTraefikDynamicConfig(appServices: ServiceConfig[], baasServices
   });
 }
 
-async function generateProductionStack(projectConfig: ReturnType<typeof getProjectConfig>, env: string, _sslEmail?: string) {
+async function generateProductionStack(projectConfig: ReturnType<typeof getProjectConfig>, env: string, _sslEmail?: string, _sslProvider?: SSLProvider) {
   console.log(chalk.blue('ℹ'), `Preparing production environment for ${env}...`);
 
   // Get domains from deployment config
@@ -710,7 +782,9 @@ async function generateProductionStack(projectConfig: ReturnType<typeof getProje
   writeFileSync('.light/traefik/dynamic.yml', dynamicConfig);
 }
 
-function generateProductionTraefikConfig(appServices: ServiceConfig[], domain: string): string {
+function generateProductionTraefikConfig(_appServices: ServiceConfig[], _domain: string): string {
+  // T028: In deployment mode, the app is containerized and configured via Docker labels
+  // No need for file-based routing - Traefik auto-discovers via Docker provider
   const config: TraefikDynamicConfig = {
     http: {
       routers: {},
@@ -718,28 +792,9 @@ function generateProductionTraefikConfig(appServices: ServiceConfig[], domain: s
     }
   };
 
-  // In production, app services run in containers, not localhost
-  appServices.forEach(service => {
-    const routerName = service.name;
-    const serviceName = `${service.name}-service`;
-
-    config.http.routers[routerName] = {
-      rule: `Host(\`${service.name}.${domain}\`)`,
-      service: serviceName,
-      tls: true
-    };
-
-    // In production, these would be containerized services
-    // For now, still proxy to localhost for testing
-    config.http.services[serviceName] = {
-      loadBalancer: {
-        servers: [{ url: `http://host.docker.internal:${service.port}` }]
-      }
-    };
-  });
-
-  // Note: Supabase services (Kong, Studio) are configured via Docker labels
-  // in the generated docker-compose.supabase.yml, not here
+  // Note: App service routing is configured via Traefik labels in docker-compose.deployment.yml
+  // Note: Supabase services (Kong, Studio) are configured via Docker labels in docker-compose.supabase-overrides.yml
+  // This file is intentionally minimal for deployment mode
 
   return yaml.dump(config, {
     indent: 2,
@@ -949,18 +1004,6 @@ function showRouterStatus(projectConfig: ReturnType<typeof getProjectConfig>, en
   console.log('\n' + chalk.bold('Manage deployments:'));
   console.log('  Add deployment target: ' + chalk.cyan('light env add <name>'));
   console.log('');
-}
-
-function checkSupabaseDevEnvironment(): boolean {
-  try {
-    // Check if Supabase CLI containers are running
-    const output = execSync('docker ps --filter "name=supabase_" --format "{{.Names}}"', {
-      encoding: 'utf-8'
-    });
-    return output.trim().length > 0;
-  } catch {
-    return false;
-  }
 }
 
 function loadOrGenerateSecrets(env: string): { generated: boolean; secrets: Record<string, string> } {

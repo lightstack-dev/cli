@@ -70,7 +70,7 @@ description: "Task list for Separate Development and Deployment Workflows"
 
 ---
 
-## Phase 4: User Story 2 - Local Deployment Testing with Full Stack (Priority: P2)
+## Phase 4: User Story 2 - Local Deployment Testing with Full Stack (Priority: P2) ✅ COMPLETE
 
 **Goal**: Refactor deployment mode into dedicated `deployFullStackMode()` function with Supabase stack orchestration, environment conflict detection, and SSL provider support
 
@@ -78,23 +78,23 @@ description: "Task list for Separate Development and Deployment Workflows"
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] Extract deployment mode logic (lines 99-260 from current `up.ts`) into new `deployFullStackMode(env: string, options: UpOptions)` function in `src/commands/up.ts`
-- [ ] T017 [US2] Add `detectRunningEnvironment()` utility in `src/utils/docker.ts` to detect running Lightstack environments by reading `.light/.current-env` file (contains environment name) and verifying Traefik container is running; returns current environment name or null
-- [ ] T017a [US2] Add `checkSupabaseDevEnvironment()` utility in `src/utils/docker.ts` to detect if Supabase CLI is running by checking localhost ports 54321 (Kong API), 54323 (Auth), 54324 (Studio); returns boolean
-- [ ] T017b [US2] Implement `checkPortConflicts()` utility in `src/utils/docker.ts` to detect if ports 80 and 443 are occupied by any process (use platform-specific commands: `netstat` on Windows, `lsof` on Unix); return occupying process info or null
-- [ ] T018 [US2] Update `deployFullStackMode()` to check for running environments at start using T017 and T017b: first check if another Lightstack environment is running (T017); if same env detected, show `light status` output and exit gracefully; if different env detected, use inquirer prompt "Stop '<current>' and start '<requested>'? [Y/n]" with 10-second timeout defaulting to YES, then stop current environment before proceeding; if no Lightstack environment but ports 80/443 occupied (T017b), show error: "Ports 80/443 are occupied by <process>. Stop it first: <suggested command>"
-- [ ] T019 [US2] Update `deployFullStackMode()` to call `checkSupabaseDevEnvironment()` (from T017a) and prompt user to stop if conflicts detected
-- [ ] T020 [US2] Add SSL provider determination logic in `deployFullStackMode()`: read `options.ca` (from T009a flag parsing), default to 'mkcert', pass to generateProductionStack()
-- [ ] T021 [US2] Update `deployFullStackMode()` to call `generateProductionStack()` for Supabase stack configuration with SSL provider parameter
-- [ ] T022 [US2] Update `deployFullStackMode()` to use `getComposeFiles(env)` which returns deployment.yml (not production.yml)
-- [ ] T023 [US2] Update `deployFullStackMode()` to call `runSupabaseMigrations()` with containerized PostgreSQL connection (supabase-db:5432) after containers start; validate migration success by checking exit code; on failure, show migration errors and suggest: "Check migration files in supabase/migrations/ or run: light logs supabase-db"
-- [ ] T024 [US2] Update `upCommand()` to call `deployFullStackMode(env, options)` when mode === 'deployment'
+- [X] T016 [US2] Extract deployment mode logic (lines 99-260 from current `up.ts`) into new `deployFullStackMode(env: string, options: UpOptions)` function in `src/commands/up.ts`
+- [X] T017 [US2] Add `detectRunningEnvironment()` utility in `src/utils/docker.ts` to detect running Lightstack environments by reading `.light/.current-env` file (contains environment name) and verifying Traefik container is running; returns current environment name or null
+- [X] T017a [US2] Add `checkSupabaseDevEnvironment()` utility in `src/utils/docker.ts` to detect if Supabase CLI is running by checking localhost ports 54321 (Kong API), 54323 (Auth), 54324 (Studio); returns boolean
+- [X] T017b [US2] Implement `checkPortConflicts()` utility in `src/utils/docker.ts` to detect if ports 80 and 443 are occupied by any process (use platform-specific commands: `netstat` on Windows, `lsof` on Unix); return occupying process info or null
+- [X] T018 [US2] Update `deployFullStackMode()` to check for running environments at start using T017 and T017b: first check if another Lightstack environment is running (T017); if same env detected, show `light status` output and exit gracefully; if different env detected, use inquirer prompt "Stop '<current>' and start '<requested>'? [Y/n]" with 10-second timeout defaulting to YES, then stop current environment before proceeding; if no Lightstack environment but ports 80/443 occupied (T017b), show error: "Ports 80/443 are occupied by <process>. Stop it first: <suggested command>"
+- [X] T019 [US2] Update `deployFullStackMode()` to call `checkSupabaseDevEnvironment()` (from T017a) and prompt user to stop if conflicts detected
+- [X] T020 [US2] Add SSL provider determination logic in `deployFullStackMode()`: read `options.ca` (from T009a flag parsing), default to 'mkcert', pass to generateProductionStack()
+- [X] T021 [US2] Update `deployFullStackMode()` to call `generateProductionStack()` for Supabase stack configuration with SSL provider parameter
+- [X] T022 [US2] Update `deployFullStackMode()` to use `getComposeFiles(env)` which returns deployment.yml (not production.yml)
+- [X] T023 [US2] Update `deployFullStackMode()` to call `runSupabaseMigrations()` with containerized PostgreSQL connection (supabase-db:5432) after containers start; validate migration success by checking exit code; on failure, show migration errors and suggest: "Check migration files in supabase/migrations/ or run: light logs supabase-db"
+- [X] T024 [US2] Update `upCommand()` to call `deployFullStackMode(env, options)` when mode === 'deployment'
 
-**Checkpoint**: At this point, `light up staging` should start full Supabase stack with mkcert SSL, detect environment conflicts, and show SSL info message (but app still needs to be containerized in US3)
+**Checkpoint**: ✅ COMPLETE - `light up staging` starts full Supabase stack with mkcert SSL, detects environment conflicts, and shows SSL info message
 
 ---
 
-## Phase 5: User Story 3 - App Containerization for Deployment Testing (Priority: P2)
+## Phase 5: User Story 3 - App Containerization for Deployment Testing (Priority: P2) ✅ COMPLETE
 
 **Goal**: Add Dockerfile generation to `init` command and app service to deployment compose file for complete containerization
 
@@ -102,15 +102,17 @@ description: "Task list for Separate Development and Deployment Workflows"
 
 ### Implementation for User Story 3
 
-- [ ] T025 [P] [US3] Update `initCommand()` in `src/commands/init.ts` to call `generateDockerfile()` and write to project root `Dockerfile` if it doesn't exist
-- [ ] T025a [P] [US3] Add validation in `generateDockerfile()` to check if package.json exists and has required `build` and `start` scripts; if missing, throw error with message: "Your package.json is missing required scripts. Add: \"scripts\": { \"build\": \"...\", \"start\": \"...\" }"
-- [ ] T026 [P] [US3] Update compose file generator to generate `docker-compose.deployment.yml` (replacing the old `docker-compose.production.yml` pattern) throughout codebase
-- [ ] T027 [US3] Add app service definition to `docker-compose.deployment.yml` template with Traefik labels (see research.md for YAML structure)
-- [ ] T028 [US3] Update `generateProductionTraefikConfig()` in `src/commands/up.ts` to remove app proxy to localhost (app is now containerized)
-- [ ] T029 [US3] Add Dockerfile validation check in `deployFullStackMode()` before attempting Docker Compose build
-- [ ] T030 [US3] Update error handling in `deployFullStackMode()` to show build logs and troubleshooting when app container fails to build/start
+- [X] T025 [P] [US3] Update `initCommand()` in `src/commands/init.ts` to call `generateDockerfile()` and write to project root `Dockerfile` if it doesn't exist
+- [X] T025a [P] [US3] Add validation in `generateDockerfile()` to check if package.json exists and has required `build` and `start` scripts; if missing, throw error with message: "Your package.json is missing required scripts. Add: \"scripts\": { \"build\": \"...\", \"start\": \"...\" }"
+- [X] T026 [P] [US3] Update compose file generator to generate `docker-compose.deployment.yml` (replacing the old `docker-compose.production.yml` pattern) throughout codebase
+- [X] T027 [US3] Add app service definition to `docker-compose.deployment.yml` template with Traefik labels (see research.md for YAML structure)
+- [X] T028 [US3] Update `generateProductionTraefikConfig()` in `src/commands/up.ts` to remove app proxy to localhost (app is now containerized)
+- [X] T029 [US3] Add Dockerfile validation check in `deployFullStackMode()` before attempting Docker Compose build
+- [X] T030 [US3] Update error handling in `deployFullStackMode()` to show build logs and troubleshooting when app container fails to build/start
 
-**Checkpoint**: All deployment environments now run fully containerized stacks including the user's app
+**Checkpoint**: ✅ COMPLETE - All deployment environments now run fully containerized stacks including the user's app
+
+**Tests Added**: Contract tests for deployment.yml generation and Dockerfile generation in project root
 
 ---
 

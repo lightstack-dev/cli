@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import yaml from 'js-yaml';
 import type { ProjectConfig } from '../utils/config.js';
 import { getDevCommand } from '../utils/package-manager.js';
+import { generateDockerfile } from '../utils/dockerfile.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -120,11 +121,11 @@ async function createDockerComposeFiles(project: ProjectConfig) {
 
   writeFileSync('.light/docker-compose.development.yml', devCompose);
 
-  // Production override (docker-compose.production.yml)
+  // T026: Deployment override (docker-compose.deployment.yml) - renamed from production.yml
   // Check if Supabase project exists
   const hasSupabase = existsSync('supabase/config.toml');
 
-  let prodCompose = '';
+  let deploymentCompose = '';
 
   // Copy official Supabase stack if Supabase project detected
   if (hasSupabase) {
@@ -138,7 +139,7 @@ async function createDockerComposeFiles(project: ProjectConfig) {
     const { copyDirectory } = await import('../utils/files.js');
     copyDirectory(templateDir, targetDir);
 
-    prodCompose += `# Include official Supabase self-hosted stack
+    deploymentCompose += `# Include official Supabase self-hosted stack
 # Source: https://github.com/supabase/supabase/tree/master/docker
 # Bundled template files copied to .light/supabase/
 # Environment variables are loaded from project root .env via --env-file flag
@@ -148,7 +149,7 @@ include:
 `;
   }
 
-  prodCompose += `services:
+  deploymentCompose += `services:
   router:
     command:
       - --api.dashboard=false
@@ -160,17 +161,34 @@ include:
       - --entrypoints.websecure.address=:443
       - --entrypoints.web.http.redirections.entryPoint.to=websecure
       - --entrypoints.web.http.redirections.entryPoint.scheme=https
-      # Note: For local production testing, SSL certs are in file provider
+      # Note: For local deployment testing, SSL certs are in file provider
       # For remote deployment, add Let's Encrypt configuration via environment-specific overrides
     volumes:
       - ./traefik:/etc/traefik/dynamic:ro
       - ./certs:/certs:ro
 `;
 
+  // T027: Add app service definition to deployment compose file
+  deploymentCompose += `
+  # Application container (deployment mode only)
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: \${PROJECT_NAME:-${project.name}}-app
+    environment:
+      - NODE_ENV=production
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.app.rule=Host(\`app.\${DOMAIN:-local.lightstack.dev}\`)
+      - traefik.http.routers.app.tls=true
+      - traefik.http.services.app.loadbalancer.server.port=3000
+`;
+
   // Add default network configuration for Supabase services
   // Use project-specific network name to avoid collisions between projects
   if (hasSupabase) {
-    prodCompose += `
+    deploymentCompose += `
 # Override default network name to be project-specific
 # This prevents collisions when running multiple Lightstack projects
 networks:
@@ -179,7 +197,7 @@ networks:
 `;
   }
 
-  writeFileSync('.light/docker-compose.production.yml', prodCompose);
+  writeFileSync('.light/docker-compose.deployment.yml', deploymentCompose);
 
   // Create a separate override file for Supabase service customization
   // This must be a separate file because Docker Compose include doesn't allow service overrides
@@ -259,41 +277,33 @@ services:
 }
 
 function createDockerfile() {
-  // Don't overwrite existing Dockerfile
-  if (existsSync('.light/Dockerfile')) {
+  // T025: Don't overwrite existing Dockerfile
+  if (existsSync('Dockerfile')) {
+    console.log(chalk.blue('ℹ'), 'Dockerfile already exists, skipping generation');
     return;
   }
 
-  const dockerfile = `# Lightstack Production Build
-# This Dockerfile is used for production deployments
+  // T025: Generate Dockerfile using the utility (validates package.json scripts)
+  try {
+    const dockerfile = generateDockerfile({
+      nodeVersion: '20-alpine',
+      packageManager: 'npm', // Will be auto-detected from lock files in future
+      buildCommand: 'build',
+      startCommand: 'start',
+      appPort: 3000
+    });
 
-FROM node:20-alpine AS base
-
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-WORKDIR /app
-
-# Copy package files
-COPY package.json pnpm-lock.yaml* ./
-
-# Install dependencies
-RUN pnpm install --frozen-lockfile --prod
-
-# Copy application code
-COPY . .
-
-# Build application (adjust this for your framework)
-RUN pnpm run build
-
-# Expose port (adjust to match your app's port)
-EXPOSE 3000
-
-# Start application (adjust command for your framework)
-CMD ["pnpm", "start"]
-`;
-
-  writeFileSync('.light/Dockerfile', dockerfile);
+    writeFileSync('Dockerfile', dockerfile);
+    console.log(chalk.green('✓'), 'Generated Dockerfile for containerized deployment');
+  } catch (error) {
+    // T025a: If package.json is missing required scripts, show helpful error
+    if (error instanceof Error && error.message.includes('package.json')) {
+      console.log(chalk.yellow('!'), 'Skipping Dockerfile generation:', error.message);
+      console.log(chalk.blue('ℹ'), 'Add build and start scripts to package.json, then run', chalk.cyan('light init --force'));
+    } else {
+      throw error;
+    }
+  }
 }
 
 function updateGitignore() {
