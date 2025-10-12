@@ -27,8 +27,8 @@ description: "Task list for Separate Development and Deployment Workflows"
 **Purpose**: Project initialization and basic structure for refactoring
 
 - [X] T001 Create new utility files: `src/utils/docker.ts` for mode detection and Docker command builders
-- [X] T002 [P] Create new utility file: `src/utils/dockerfile.ts` for Dockerfile template generation
-- [X] T003 [P] Create template directory and Dockerfile template: `src/templates/Dockerfile` with multi-stage Node.js pattern from research.md
+- [X] ~~T002 [P] Create new utility file: `src/utils/dockerfile.ts` for Dockerfile template generation~~ **OBSOLETE (2025-10-12)**: Removed - violates Constitutional Principle I
+- [X] ~~T003 [P] Create template directory and Dockerfile template: `src/templates/Dockerfile` with multi-stage Node.js pattern from research.md~~ **OBSOLETE (2025-10-12)**: Removed - violates Constitutional Principle I
 
 ---
 
@@ -41,7 +41,7 @@ description: "Task list for Separate Development and Deployment Workflows"
 - [X] T004 Implement `determineMode(env: string): Mode` function in `src/utils/docker.ts` (returns 'development' | 'deployment')
 - [X] T005 Implement `getComposeFiles(env: string): string[]` function in `src/utils/docker.ts` (returns correct compose file list based on mode)
 - [X] T006 [P] Implement `buildDockerCommand()` utility in `src/utils/docker.ts` for constructing docker compose commands
-- [X] T007 [P] Implement `generateDockerfile(config: DockerfileConfig): string` in `src/utils/dockerfile.ts` using multi-stage pattern
+- [X] ~~T007 [P] Implement `generateDockerfile(config: DockerfileConfig): string` in `src/utils/dockerfile.ts` using multi-stage pattern~~ **OBSOLETE (2025-10-12)**: Removed - violates Constitutional Principle I
 - [X] T008 Refactor `upCommand()` in `src/commands/up.ts` to add early mode detection and branching logic (lines 48-50)
 - [X] T009 Extract `commonPrerequisiteChecks(env: string)` from current `upCommand()` in `src/commands/up.ts` (checks Docker, config, environment exists)
 - [X] T009a Add `--ca <provider>` flag to up command schema in `src/commands/up.ts` using Commander.js `.option()` with choices validation ['mkcert', 'letsencrypt']
@@ -102,17 +102,17 @@ description: "Task list for Separate Development and Deployment Workflows"
 
 ### Implementation for User Story 3
 
-- [X] T025 [P] [US3] Update `initCommand()` in `src/commands/init.ts` to call `generateDockerfile()` and write to project root `Dockerfile` if it doesn't exist
-- [X] T025a [P] [US3] Add validation in `generateDockerfile()` to check if package.json exists and has required `build` and `start` scripts; if missing, throw error with message: "Your package.json is missing required scripts. Add: \"scripts\": { \"build\": \"...\", \"start\": \"...\" }"
+- [ ] **T025 [P] [US3] UPDATED (2025-10-12)**: Update `initCommand()` in `src/commands/init.ts` to check if Dockerfile exists; if missing, show informative message per FR-012: "For deployment mode, you'll need a Dockerfile. Create one with: docker init (recommended) OR write a custom Dockerfile. See: https://lightstack.dev/docs/dockerfile"
+- [X] ~~T025a [P] [US3] Add validation in `generateDockerfile()` to check if package.json exists and has required `build` and `start` scripts; if missing, throw error with message: "Your package.json is missing required scripts. Add: \"scripts\": { \"build\": \"...\", \"start\": \"...\" }"~~ **OBSOLETE (2025-10-12)**: Removed with Dockerfile generation
 - [X] T026 [P] [US3] Update compose file generator to generate `docker-compose.deployment.yml` (replacing the old `docker-compose.production.yml` pattern) throughout codebase
 - [X] T027 [US3] Add app service definition to `docker-compose.deployment.yml` template with Traefik labels (see research.md for YAML structure)
 - [X] T028 [US3] Update `generateProductionTraefikConfig()` in `src/commands/up.ts` to remove app proxy to localhost (app is now containerized)
-- [X] T029 [US3] Add Dockerfile validation check in `deployFullStackMode()` before attempting Docker Compose build
-- [X] T030 [US3] Update error handling in `deployFullStackMode()` to show build logs and troubleshooting when app container fails to build/start
+- [ ] **T029 [US3] UPDATED (2025-10-12)**: Add Dockerfile validation check in `deployFullStackMode()` before attempting Docker Compose build; if missing, show error per FR-012: "Dockerfile required for deployment mode.\n\nCreate one using:\n  • docker init (recommended - interactive setup)\n  • Manual creation (see https://lightstack.dev/docs/dockerfile)\n\nAlternatively, use development mode: light up"
+- [ ] **T030 [US3] UPDATED (2025-10-12)**: Update error handling in `deployFullStackMode()` to show build logs and troubleshooting when app container fails to build/start; use exact FR-012 error message: "App container build failed. Verify Dockerfile builds locally with: docker build -t myapp .\n\nDocs: https://lightstack.dev/docs/dockerfile"
 
-**Checkpoint**: ✅ COMPLETE - All deployment environments now run fully containerized stacks including the user's app
+**Checkpoint**: ⚠️ PARTIAL - Most tasks complete, but T025/T029/T030 need updates for Dockerfile validation approach (2025-10-12 change)
 
-**Tests Added**: Contract tests for deployment.yml generation and Dockerfile generation in project root
+**Tests Added**: Contract tests for deployment.yml generation ~~and Dockerfile generation in project root~~ **OBSOLETE**: Dockerfile generation tests removed
 
 ---
 
@@ -300,10 +300,11 @@ With multiple developers:
 - ✅ deployFullStackMode() function is independent and testable
 
 **User Story 3**:
-- ✅ Dockerfile generated during `light init`
-- ✅ App container builds from Dockerfile
+- ⚠️ ~~Dockerfile generated during `light init`~~ **UPDATED (2025-10-12)**: Informative message shown if Dockerfile missing (users create via `docker init`)
+- ✅ App container builds from user-provided Dockerfile
 - ✅ App container runs and is accessible via HTTPS
 - ✅ `docker-compose.deployment.yml` includes app service
+- ⚠️ Error messages guide users to `docker init` when Dockerfile missing
 
 **User Story 4**:
 - ✅ Development mode shows "Start your app" message
@@ -316,6 +317,49 @@ With multiple developers:
 - ✅ All Spec 001 functionality preserved (backward compatible)
 - ✅ Clear code separation between development and deployment modes
 - ✅ `docker-compose.production.yml` renamed to `docker-compose.deployment.yml`
-- ✅ All quickstart.md test scenarios pass
+- ⚠️ ~~All quickstart.md test scenarios pass~~ **PARTIAL (2025-10-12)**: Need to update scenarios for new Dockerfile validation approach
 - ✅ All constitutional principles followed
-- ✅ Test coverage maintained (unit + contract tests)
+- ⚠️ ~~Test coverage maintained (unit + contract tests)~~ **UPDATED (2025-10-12)**: Removed Dockerfile generation tests, need to add validation tests
+
+---
+
+## Post-Implementation Changes (2025-10-12)
+
+**Dockerfile Generation Removal**:
+
+After implementing Spec 002, we discovered that custom Dockerfile generation violated Constitutional Principle I: "Don't Reinvent the Wheel." During testing with a Bun workspace project, we encountered:
+- Package manager detection edge cases
+- Workspace vs standalone project detection
+- Base image selection (Alpine vs Debian)
+- User creation command differences between base images
+- Lock file location variations
+
+These issues revealed we were rebuilding what `docker init`, Nixpacks, and Paketo Buildpacks already solve better.
+
+**Tasks Marked OBSOLETE**:
+- T002: Create `src/utils/dockerfile.ts`
+- T003: Create `src/templates/Dockerfile`
+- T007: Implement `generateDockerfile()`
+- T025a: Add package.json validation in generation
+
+**Tasks UPDATED with New Approach**:
+- T025: Show informative message during init (not generation)
+- T029: Validate Dockerfile exists, suggest `docker init` if missing
+- T030: Show helpful error message for build failures
+
+**Code to Remove**:
+- `src/utils/dockerfile.ts` (entire file)
+- `src/templates/Dockerfile` (entire file)
+- `src/commands/generate/dockerfile.ts` (entire file)
+- `src/commands/generate.ts` (entire file)
+- All `generateDockerfile()` calls in `src/commands/init.ts`
+- Dockerfile generation tests
+
+**Code to Update**:
+- `src/commands/init.ts`: Replace generation with informative message
+- `src/commands/up.ts`: Update deployment validation to suggest `docker init`
+
+**Related**:
+- Closed GitHub Issue #19 (auto-generation) as wont-fix
+- Updated spec.md FR-012 with new approach
+- Updated spec.md Clarifications (Session 2025-10-12)

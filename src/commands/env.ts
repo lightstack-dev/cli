@@ -407,7 +407,7 @@ function writeDnsApiKeyToEnv(envName: string, apiKey: string) {
     // Add new (with section header if this is first env var)
     if (!envContent.includes('# Deployment secrets')) {
       lines.push('');
-      lines.push('# Deployment secrets (not committed to git)');
+      lines.push('# Deployment secrets');
     }
     lines.push(`${envKey}=${apiKey}`);
   }

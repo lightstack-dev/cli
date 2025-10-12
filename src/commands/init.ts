@@ -4,8 +4,7 @@ import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import yaml from 'js-yaml';
 import type { ProjectConfig } from '../utils/config.js';
-import { getDevCommand } from '../utils/package-manager.js';
-import { generateDockerfile } from '../utils/dockerfile.js';
+import { getDevCommand, detectWorkspace } from '../utils/package-manager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -56,8 +55,8 @@ export async function initCommand(projectName?: string, options: InitOptions = {
     // Create basic Docker Compose files
     await createDockerComposeFiles(project);
 
-    // Create Dockerfile for production builds
-    createDockerfile();
+    // Check for Dockerfile and show guidance if missing
+    checkDockerfile();
 
     // Update .gitignore
     updateGitignore();
@@ -169,12 +168,20 @@ include:
 `;
 
   // T027: Add app service definition to deployment compose file
+  // Detect if this is a workspace project
+  // Note: Context is relative to .light/ directory where compose files live
+  // For standalone: context . = project root
+  // For workspace: context ../.. = workspace root (up from .light/ to project, then to workspace)
+  const workspaceInfo = detectWorkspace();
+  const buildContext = workspaceInfo.isWorkspace ? '../..' : '..';
+  const dockerfilePath = workspaceInfo.isWorkspace ? `${workspaceInfo.subdirName}/Dockerfile` : 'Dockerfile';
+
   deploymentCompose += `
   # Application container (deployment mode only)
   app:
     build:
-      context: ..
-      dockerfile: Dockerfile
+      context: ${buildContext}
+      dockerfile: ${dockerfilePath}
     container_name: \${PROJECT_NAME:-${project.name}}-app
     environment:
       - NODE_ENV=production
@@ -276,33 +283,16 @@ services:
   }
 }
 
-function createDockerfile() {
-  // T025: Don't overwrite existing Dockerfile
-  if (existsSync('Dockerfile')) {
-    console.log(chalk.blue('ℹ'), 'Dockerfile already exists, skipping generation');
-    return;
-  }
-
-  // T025: Generate Dockerfile using the utility (validates package.json scripts)
-  try {
-    const dockerfile = generateDockerfile({
-      nodeVersion: '20-alpine',
-      packageManager: 'npm', // Will be auto-detected from lock files in future
-      buildCommand: 'build',
-      startCommand: 'start',
-      appPort: 3000
-    });
-
-    writeFileSync('Dockerfile', dockerfile);
-    console.log(chalk.green('✓'), 'Generated Dockerfile for containerized deployment');
-  } catch (error) {
-    // T025a: If package.json is missing required scripts, show helpful error
-    if (error instanceof Error && error.message.includes('package.json')) {
-      console.log(chalk.yellow('!'), 'Skipping Dockerfile generation:', error.message);
-      console.log(chalk.blue('ℹ'), 'Add build and start scripts to package.json, then run', chalk.cyan('light init --force'));
-    } else {
-      throw error;
-    }
+function checkDockerfile() {
+  // T025 UPDATED (2025-10-12): Show informative message if Dockerfile missing
+  // FR-012: CLI doesn't generate Dockerfiles - users should use `docker init` or create manually
+  if (!existsSync('Dockerfile')) {
+    console.log('');
+    console.log(chalk.blue('ℹ'), 'For deployment mode, you\'ll need a Dockerfile.');
+    console.log('  Create one with:', chalk.cyan('docker init'), '(recommended)');
+    console.log('  OR write a custom Dockerfile');
+    console.log('  See:', chalk.dim('https://lightstack.dev/docs/dockerfile'));
+    console.log('');
   }
 }
 

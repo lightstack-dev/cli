@@ -132,7 +132,7 @@ function deployDevMode(projectConfig: ReturnType<typeof getProjectConfig>, optio
     const validation = validateContainerStatus(expectedContainers, existingStatus);
 
     if (validation.valid) {
-      console.log(chalk.green('✓'), `Lightstack infrastructure is already running (${env})`);
+      console.log('\n' + chalk.green('✓'), `Lightstack infrastructure is already running (${env})`);
       // Show same helpful output as when starting fresh
       showRouterStatus(projectConfig, env);
       return;
@@ -218,7 +218,7 @@ async function deployFullStackMode(projectConfig: ReturnType<typeof getProjectCo
   if (currentEnv) {
     if (currentEnv === env) {
       // Same environment already running - show status and exit gracefully
-      console.log(chalk.green('✓'), `Lightstack infrastructure is already running (${env})`);
+      console.log('\n' + chalk.green('✓'), `Lightstack infrastructure is already running (${env})`);
       console.log('\n' + chalk.bold('Current status:'));
       const status = checkInfrastructureStatus(projectConfig.name, env);
       status.running.forEach(container => {
@@ -351,14 +351,21 @@ async function deployFullStackMode(projectConfig: ReturnType<typeof getProjectCo
 
   await generateProductionStack(projectConfig, env, sslEmail, sslProvider);
 
-  // T029: Validate Dockerfile exists before attempting Docker Compose build
+  // T029 UPDATED (2025-10-12): Validate Dockerfile exists before deployment
+  // FR-012: CLI doesn't generate Dockerfiles - users should use `docker init`
   if (!existsSync('Dockerfile')) {
     throw new Error(
-      'No Dockerfile found in project root.\n\n' +
-      'Deployment mode requires a Dockerfile to containerize your application.\n' +
-      'Solution: Run ' + chalk.cyan('light init') + ' to generate a Dockerfile, or create one manually.'
+      'Dockerfile required for deployment mode.\n\n' +
+      'Create one using:\n' +
+      '  • ' + chalk.cyan('docker init') + ' (recommended - interactive setup)\n' +
+      '  • Manual creation (see https://lightstack.dev/docs/dockerfile)\n\n' +
+      'Alternatively, use development mode: ' + chalk.cyan('light up')
     );
   }
+
+  // Note: We no longer validate package.json scripts here
+  // Users are responsible for ensuring their Dockerfile works correctly
+  // They can test locally with: docker build -t myapp .
 
   // Check if infrastructure is already running
   const composeFiles = getComposeFiles(env);
@@ -370,7 +377,7 @@ async function deployFullStackMode(projectConfig: ReturnType<typeof getProjectCo
     const validation = validateContainerStatus(expectedContainers, existingStatus);
 
     if (validation.valid) {
-      console.log(chalk.green('✓'), `Lightstack infrastructure is already running (${env})`);
+      console.log('\n' + chalk.green('✓'), `Lightstack infrastructure is already running (${env})`);
       // Show same helpful output as when starting fresh
       showRouterStatus(projectConfig, env);
       return;
@@ -424,23 +431,25 @@ async function deployFullStackMode(projectConfig: ReturnType<typeof getProjectCo
         });
       }
 
-      // T032: Deployment-specific troubleshooting
+      // T032: Deployment-specific troubleshooting (updated 2025-10-12)
       console.log(chalk.blue('\nℹ Deployment troubleshooting:'));
       console.log('  1. If app container failed: Check Dockerfile build logs with', chalk.cyan('light logs app'));
-      console.log('  2. If database failed: Check PostgreSQL logs with', chalk.cyan('light logs supabase-db'));
-      console.log('  3. Try running the command again:', chalk.cyan(`light up ${env}`));
-      console.log('  4. Clean rebuild:', chalk.cyan('light down && light up ' + env));
+      console.log('  2. Verify Dockerfile builds locally:', chalk.cyan('docker build -t myapp .'));
+      console.log('  3. If database failed: Check PostgreSQL logs with', chalk.cyan('light logs supabase-db'));
+      console.log('  4. Try running the command again:', chalk.cyan(`light up ${env}`));
+      console.log('  5. Clean rebuild:', chalk.cyan('light down && light up ' + env));
 
       // Don't exit with error if some containers are running
       return;
     } else {
       console.log(chalk.red('✗'), 'No containers are running');
-      // T032: Deployment-specific troubleshooting for complete failure
+      // T030 UPDATED (2025-10-12): Deployment-specific troubleshooting for complete failure
       console.log(chalk.blue('\nℹ Deployment troubleshooting:'));
       console.log('  1. Check Docker Desktop is running');
       console.log('  2. Verify Dockerfile exists:', chalk.cyan('ls Dockerfile'));
-      console.log('  3. Check package.json has "build" and "start" scripts');
+      console.log('  3. Test Dockerfile builds locally:', chalk.cyan('docker build -t myapp .'));
       console.log('  4. Clean up and retry:', chalk.cyan('light down && light up ' + env));
+      console.log('  Docs:', chalk.dim('https://lightstack.dev/docs/dockerfile'));
       throw new Error('Failed to start containers');
     }
   }
@@ -548,7 +557,10 @@ function checkEnvironment(env: string) {
 
 function getComposeFiles(env: string): string[] {
   const baseFile = '.light/docker-compose.yml';
-  const envFile = `.light/docker-compose.${env}.yml`;
+  // T026: Use deployment.yml for all non-development environments (not production.yml)
+  const envFile = env === 'development'
+    ? '.light/docker-compose.development.yml'
+    : '.light/docker-compose.deployment.yml';
   const supabaseOverridesFile = '.light/docker-compose.supabase-overrides.yml';
 
   const files = [baseFile];
@@ -557,7 +569,7 @@ function getComposeFiles(env: string): string[] {
     files.push(envFile);
   }
 
-  // Add Supabase overrides file if it exists (for production with Supabase)
+  // Add Supabase overrides file if it exists (for deployment mode with Supabase)
   if (env !== 'development' && existsSync(supabaseOverridesFile)) {
     files.push(supabaseOverridesFile);
   }
@@ -760,7 +772,7 @@ async function generateProductionStack(projectConfig: ReturnType<typeof getProje
 
   if (secrets.generated) {
     console.log(chalk.green('✓'), `Production secrets generated in .env`);
-    console.log(chalk.blue('ℹ'), 'Secrets are stored locally and gitignored\n');
+    console.log(chalk.blue('ℹ'), 'Remember to add .env to .gitignore\n');
   } else {
     console.log(chalk.blue('ℹ'), 'Using existing production secrets from .env\n');
   }
@@ -1069,7 +1081,7 @@ function loadOrGenerateSecrets(env: string): { generated: boolean; secrets: Reco
     lines.push('');
     lines.push(`# ${env.charAt(0).toUpperCase() + env.slice(1)} Supabase Secrets`);
     lines.push(`# Auto-generated by Lightstack CLI`);
-    lines.push(`# These secrets are loaded into .light/.env for Supabase services`);
+    lines.push(`# Used to generate Supabase environment variables in .light/.env`);
   }
 
   // Add missing secrets and build the complete secrets object

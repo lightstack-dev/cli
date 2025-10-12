@@ -81,6 +81,37 @@ export function getDevCommand(): string {
 }
 
 /**
+ * Detect if the project is in a workspace (monorepo) structure
+ * Returns workspace info or null if standalone project
+ */
+export function detectWorkspace(): { isWorkspace: true; lockFile: string; subdirName: string } | { isWorkspace: false } {
+  const currentDir = process.cwd();
+  const parentDir = dirname(currentDir);
+
+  // Check if lock file exists in current directory (standalone project)
+  for (const lockFile of LOCK_FILES) {
+    if (existsSync(join(currentDir, lockFile.name))) {
+      return { isWorkspace: false };
+    }
+  }
+
+  // Check if lock file exists in parent directory (workspace project)
+  for (const lockFile of LOCK_FILES) {
+    const parentLockPath = join(parentDir, lockFile.name);
+    if (existsSync(parentLockPath)) {
+      return {
+        isWorkspace: true,
+        lockFile: lockFile.name,
+        subdirName: parse(currentDir).base
+      };
+    }
+  }
+
+  // No lock file found in current or parent - treat as standalone
+  return { isWorkspace: false };
+}
+
+/**
  * Check if Supabase CLI is available and return the command to run it
  * Returns null if Supabase CLI is not available
  *

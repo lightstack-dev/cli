@@ -86,7 +86,7 @@ describe('light init command', () => {
     expect(deploymentContent).toContain('traefik.http.routers.app.rule');
   });
 
-  it('should generate Dockerfile in project root', () => {
+  it('should generate Dockerfile in project root when scripts exist', () => {
     // Create a minimal package.json first (required for Dockerfile generation)
     writeFileSync('package.json', JSON.stringify({
       name: 'test',
@@ -108,5 +108,29 @@ describe('light init command', () => {
     expect(dockerfileContent).toContain('AS deps');
     expect(dockerfileContent).toContain('AS builder');
     expect(dockerfileContent).toContain('AS runner');
+  });
+
+  it('should silently skip Dockerfile generation when package.json missing required scripts', () => {
+    // FR-012 Clarification (2025-10-12): Don't block init for missing scripts
+    // Validation happens at deployment time, not init time
+    writeFileSync('package.json', JSON.stringify({
+      name: 'test',
+      scripts: {
+        dev: 'vite' // Missing build and start scripts
+      }
+    }));
+
+    const output = execSync(`${cli} init test-project`, { encoding: 'utf-8' });
+
+    // Should still initialize successfully
+    expect(output).toContain('initialized');
+    expect(output).not.toContain('Skipping Dockerfile'); // No user-visible error
+    expect(output).not.toContain('missing required scripts'); // No user-visible error
+
+    // Dockerfile should NOT be generated
+    expect(existsSync('Dockerfile')).toBe(false);
+
+    // But infrastructure files should still be created
+    expect(existsSync('.light/docker-compose.yml')).toBe(true);
   });
 });
