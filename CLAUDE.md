@@ -128,6 +128,18 @@ project-root/
    bun run lint          # No ESLint errors
    ```
 
+### Implementation Red Flags 🚩
+
+**STOP and ask user if you hit 3+ of these:**
+
+- Solving edge cases beyond the initial task scope (Bun detection when task was "generate config")
+- Building utilities that existing tools provide (package detection → npm does this, Dockerfile gen → docker init does this)
+- Implementation growing 3x larger than estimated
+- Writing framework/environment detection logic
+- "Just one more special case..." thinking
+
+**When in doubt**: Pause and ask "Should we be building this, or using an existing tool?"
+
 ### Testing Strategy
 
 **Philosophy**: Test what we own, not external tools.
