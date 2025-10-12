@@ -29,12 +29,13 @@ npm run dev         # Start your app separately
 # https://studio.lvh.me → Supabase Studio
 ```
 
-### Deployment Workflow (Planned)
+### Deployment Workflow
 ```bash
 # Local testing mode: Full containerized stack including app
-light up production  # Test full stack locally before deploying
+light up staging --ca mkcert   # Test full stack locally with mkcert SSL (default)
+light up staging --ca letsencrypt  # Test with Let's Encrypt for DNS validation
 
-# Remote deployment: GitOps to production server
+# Remote deployment: GitOps to production server (planned)
 git tag v1.0.0 && git push --tags
 light deploy production --tag v1.0.0
 # → SSH to server → git checkout v1.0.0 → light up production
@@ -69,10 +70,8 @@ light down               # Stop infrastructure
 2. **Deployment Mode** (`light up <env>`):
    - Full containerized stack (Traefik + Supabase + **your app**)
    - Self-hosted Supabase (PostgreSQL, Auth, API, Storage, Studio, Realtime)
-   - **App containerization** (NOT YET IMPLEMENTED - see #6)
-   - Let's Encrypt SSL (production) or mkcert (local testing)
-
-**Current Issue**: These modes are mingled in implementation. Needs clear separation (see Spec 002).
+   - **App containerization** (generates Dockerfile, builds image, runs in container)
+   - Let's Encrypt SSL or mkcert (default for local testing)
 
 ### File Structure
 ```
@@ -84,7 +83,7 @@ project-root/
 └── .light/                        # Generated infrastructure
     ├── docker-compose.yml         # Base Traefik config
     ├── docker-compose.development.yml
-    ├── docker-compose.production.yml
+    ├── docker-compose.deployment.yml
     ├── docker-compose.supabase.yml
     ├── traefik/
     │   ├── dynamic.yml            # Service routing (file-based)
@@ -173,11 +172,12 @@ For more help: light [command] --help
 - Traefik file-based routing (not Docker labels - more debuggable)
 - Simple string replacement (no complex templating)
 - Users should be able to read and modify generated files
-- Compose file naming: `.development.yml`, `.production.yml`
+- Compose file naming: `.development.yml`, `.deployment.yml`
 
 ## Current Status
 
-### ✅ Implemented (Spec 001)
+### ✅ Implemented
+**Spec 001** - Core Infrastructure:
 - Core commands (`init`, `up`, `down`, `status`, `logs`, `env`)
 - Complete Supabase Docker stack generation
 - Traefik reverse proxy with file-based routing
@@ -188,10 +188,18 @@ For more help: light [command] --help
 - Production-grade error handling
 - .gitignore management
 
+**Spec 002** - Separate Dev/Deploy Workflows:
+- **Development mode refactor**: Traefik proxy only, no app containerization
+- **Deployment mode**: Full containerized stack (Traefik + Supabase + app)
+- **App containerization**: Dockerfile generation, multi-stage builds
+- **Environment conflict detection**: One environment at a time, auto-switch prompts
+- **SSL provider support**: `--ca mkcert` (default) or `--ca letsencrypt`
+- **Mode-appropriate guidance**: Context-aware CLI messages
+- **Renamed files**: `docker-compose.deployment.yml` (was production.yml)
+
 ### 🚧 Next Priorities (GitHub Backlog)
-- **#6**: App containerization for deployment testing (CRITICAL - blocks release)
 - **#4**: Remote SSH deployment (GitOps)
-- **#5**: Let's Encrypt SSL automation
+- **#5**: Let's Encrypt SSL automation (DNS challenge)
 - **#7**: Console output formatting system
 - **#8**: Database backup strategies
 - **#9**: CI/CD workflow generation
@@ -219,7 +227,7 @@ See all issues: https://github.com/lightstack-dev/cli/issues
 4. Merge to main
 5. Start next spec
 
-**Current**: Closed Spec 001, created GitHub backlog (#4-#16), ready for Spec 002.
+**Current**: Completed Spec 002 (dev/deploy separation). Ready for Spec 003.
 
 ## Critical-Constructive Partnership
 

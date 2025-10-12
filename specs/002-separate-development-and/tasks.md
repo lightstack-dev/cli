@@ -124,10 +124,10 @@ description: "Task list for Separate Development and Deployment Workflows"
 
 ### Implementation for User Story 4
 
-- [ ] T031 [US4] Update `showRouterStatus()` in `src/commands/up.ts` to remove "Start your app" message when env !== 'development' (already started in T014, complete here)
-- [ ] T032 [US4] Add deployment-specific troubleshooting messages to error handlers in `deployFullStackMode()` (Dockerfile errors, build errors, container errors)
-- [ ] T033 [US4] Update `showRouterStatus()` to show containerized app indicator in deployment mode (e.g., "Your application (containerized)")
-- [ ] T034 [US4] Add SSL info message in `deployFullStackMode()` when using mkcert (default) with exact FR-010 wording: "ℹ Using mkcert certificates (fast local testing). To use Let's Encrypt: light up <env> --ca letsencrypt"
+- [X] T031 [US4] Update `showRouterStatus()` in `src/commands/up.ts` to remove "Start your app" message when env !== 'development' (already started in T014, complete here)
+- [X] T032 [US4] Add deployment-specific troubleshooting messages to error handlers in `deployFullStackMode()` (Dockerfile errors, build errors, container errors)
+- [X] T033 [US4] Update `showRouterStatus()` to show containerized app indicator in deployment mode (e.g., "Your application (containerized)")
+- [X] T034 [US4] Add SSL info message in `deployFullStackMode()` when using mkcert (default) with exact FR-010 wording: "ℹ Using mkcert certificates (fast local testing). To use Let's Encrypt: light up <env> --ca letsencrypt"
 
 **Checkpoint**: User guidance is now contextually appropriate for each mode
 
@@ -137,11 +137,11 @@ description: "Task list for Separate Development and Deployment Workflows"
 
 **Purpose**: Improvements that affect multiple user stories and final cleanup
 
-- [ ] T035 [P] Update `.gitignore` template generation in `src/commands/init.ts` to include `Dockerfile` in version control (NOT gitignored)
-- [ ] T036 [P] Update compose file generation logic to generate `docker-compose.deployment.yml` instead of `docker-compose.production.yml` for all non-development environments; update ALL references throughout codebase (verify: src/commands/*.ts, src/utils/*.ts, tests/**, documentation files, error messages, and any hardcoded strings)
-- [ ] T037 Add JSDoc comments to new functions in `src/utils/docker.ts` and `src/utils/dockerfile.ts`
-- [ ] T038 [P] Update CLAUDE.md to reflect completed Spec 002 (remove "NOT YET IMPLEMENTED" note, update workflow examples)
-- [ ] T039 Run quickstart.md test scenarios to validate both modes work correctly
+- [X] T035 [P] Update `.gitignore` template generation in `src/commands/init.ts` to include `Dockerfile` in version control (NOT gitignored)
+- [X] T036 [P] Update compose file generation logic to generate `docker-compose.deployment.yml` instead of `docker-compose.production.yml` for all non-development environments; update ALL references throughout codebase (verify: src/commands/*.ts, src/utils/*.ts, tests/**, documentation files, error messages, and any hardcoded strings)
+- [X] T037 Add JSDoc comments to new functions in `src/utils/docker.ts` and `src/utils/dockerfile.ts`
+- [X] T038 [P] Update CLAUDE.md to reflect completed Spec 002 (remove "NOT YET IMPLEMENTED" note, update workflow examples)
+- [X] T039 Run quickstart.md test scenarios to validate both modes work correctly
 
 ---
 

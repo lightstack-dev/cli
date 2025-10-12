@@ -313,7 +313,6 @@ function updateGitignore() {
     '# Infrastructure files are committed for GitOps deployment',
     '# Only runtime/local files are ignored:',
     '.light/.env',             // Generated Supabase env vars (contains secrets)
-    '.light/Dockerfile',       // Generated Dockerfile template
     '.light/certs/',           // mkcert dev certificates
     '.light/volumes/',         // Runtime data (database, storage)
     '.light/traefik/tls.yml',  // mkcert TLS config (dev only)

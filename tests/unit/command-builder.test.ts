@@ -15,7 +15,10 @@ function buildDockerCommand(
 
 function getComposeFiles(env: string, hasSupabaseStack: boolean): string[] {
   const baseFile = '.light/docker-compose.yml';
-  const envFile = `.light/docker-compose.${env}.yml`;
+  // T036: Use deployment.yml for non-development environments
+  const envFile = env === 'development'
+    ? `.light/docker-compose.development.yml`
+    : `.light/docker-compose.deployment.yml`;
   const supabaseFile = '.light/docker-compose.supabase.yml';
 
   const files = [baseFile];
@@ -104,14 +107,14 @@ describe('Docker Command Builder', () => {
         [
           '.light/docker-compose.yml',
           '.light/docker-compose.supabase.yml',
-          '.light/docker-compose.production.yml'
+          '.light/docker-compose.deployment.yml'
         ],
         { detach: true, projectName: 'myapp', hasEnvFile: true }
       );
 
       expect(cmd).toContain('-f .light/docker-compose.yml');
       expect(cmd).toContain('-f .light/docker-compose.supabase.yml');
-      expect(cmd).toContain('-f .light/docker-compose.production.yml');
+      expect(cmd).toContain('-f .light/docker-compose.deployment.yml');
       expect(cmd).toContain('--env-file ./.env');
     });
 
@@ -147,7 +150,7 @@ describe('Docker Command Builder', () => {
 
       expect(files).toContain('.light/docker-compose.yml');
       expect(files).toContain('.light/docker-compose.supabase.yml');
-      expect(files).toContain('.light/docker-compose.production.yml');
+      expect(files).toContain('.light/docker-compose.deployment.yml');
     });
 
     it('should not include Supabase stack for production if not available', () => {
@@ -155,14 +158,15 @@ describe('Docker Command Builder', () => {
 
       expect(files).toContain('.light/docker-compose.yml');
       expect(files).not.toContain('.light/docker-compose.supabase.yml');
-      expect(files).toContain('.light/docker-compose.production.yml');
+      expect(files).toContain('.light/docker-compose.deployment.yml');
     });
 
     it('should include environment-specific override', () => {
       const files = getComposeFiles('staging', false);
 
       expect(files).toContain('.light/docker-compose.yml');
-      expect(files).toContain('.light/docker-compose.staging.yml');
+      // T036: All non-development environments use deployment.yml
+      expect(files).toContain('.light/docker-compose.deployment.yml');
     });
 
     it('should always start with base compose file', () => {
@@ -178,7 +182,7 @@ describe('Docker Command Builder', () => {
 
       const baseIndex = files.indexOf('.light/docker-compose.yml');
       const supabaseIndex = files.indexOf('.light/docker-compose.supabase.yml');
-      const prodIndex = files.indexOf('.light/docker-compose.production.yml');
+      const prodIndex = files.indexOf('.light/docker-compose.deployment.yml');
 
       expect(baseIndex).toBeLessThan(supabaseIndex);
       expect(supabaseIndex).toBeLessThan(prodIndex);
@@ -211,7 +215,7 @@ describe('Docker Command Builder', () => {
 
       expect(cmd).toContain('-f .light/docker-compose.yml');
       expect(cmd).toContain('-f .light/docker-compose.supabase.yml');
-      expect(cmd).toContain('-f .light/docker-compose.production.yml');
+      expect(cmd).toContain('-f .light/docker-compose.deployment.yml');
       expect(cmd).toContain('--env-file ./.env');
     });
   });

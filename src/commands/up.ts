@@ -334,6 +334,12 @@ async function deployFullStackMode(projectConfig: ReturnType<typeof getProjectCo
   // T020: Determine SSL provider (mkcert by default, letsencrypt via --ca flag)
   const sslProvider = validateSSLProvider(options.ca);
 
+  // T034: Show SSL info message when using mkcert (default)
+  if (sslProvider === 'mkcert') {
+    console.log(chalk.blue('ℹ'), `Using mkcert certificates (fast local testing). To use Let's Encrypt: light up ${env} --ca letsencrypt`);
+    console.log('');
+  }
+
   // For non-development environments, generate full Supabase stack
   // Get ACME email from user config (stored in ~/.lightstack/config.yml)
   const sslEmail = getAcmeEmail();
@@ -418,18 +424,23 @@ async function deployFullStackMode(projectConfig: ReturnType<typeof getProjectCo
         });
       }
 
-      console.log(chalk.blue('\nℹ Recovery options:'));
-      console.log('  1. Try running the command again:', chalk.cyan(`light up ${env}`));
-      console.log('  2. Check logs for failed containers:', chalk.cyan('light logs'));
-      console.log('  3. Stop and restart:', chalk.cyan('light down && light up ' + env));
+      // T032: Deployment-specific troubleshooting
+      console.log(chalk.blue('\nℹ Deployment troubleshooting:'));
+      console.log('  1. If app container failed: Check Dockerfile build logs with', chalk.cyan('light logs app'));
+      console.log('  2. If database failed: Check PostgreSQL logs with', chalk.cyan('light logs supabase-db'));
+      console.log('  3. Try running the command again:', chalk.cyan(`light up ${env}`));
+      console.log('  4. Clean rebuild:', chalk.cyan('light down && light up ' + env));
 
       // Don't exit with error if some containers are running
       return;
     } else {
       console.log(chalk.red('✗'), 'No containers are running');
-      console.log(chalk.blue('\nℹ Try:'));
+      // T032: Deployment-specific troubleshooting for complete failure
+      console.log(chalk.blue('\nℹ Deployment troubleshooting:'));
       console.log('  1. Check Docker Desktop is running');
-      console.log('  2. Clean up and retry:', chalk.cyan('light down && light up ' + env));
+      console.log('  2. Verify Dockerfile exists:', chalk.cyan('ls Dockerfile'));
+      console.log('  3. Check package.json has "build" and "start" scripts');
+      console.log('  4. Clean up and retry:', chalk.cyan('light down && light up ' + env));
       throw new Error('Failed to start containers');
     }
   }
@@ -965,7 +976,10 @@ function showRouterStatus(projectConfig: ReturnType<typeof getProjectConfig>, en
     const url = env === 'development'
       ? `https://${service.name}.lvh.me`
       : `https://${service.name}.${appDomain}`;
-    const description = 'Your application';
+    // T033: Show containerized indicator in deployment mode
+    const description = env === 'development'
+      ? 'Your application'
+      : 'Your application (containerized)';
     console.log(chalk.green('  ✓'), url, chalk.gray(`→ ${description}`));
   });
 
