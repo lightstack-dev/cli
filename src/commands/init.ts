@@ -55,9 +55,6 @@ export async function initCommand(projectName?: string, options: InitOptions = {
     // Create basic Docker Compose files
     await createDockerComposeFiles(project);
 
-    // Check for Dockerfile and show guidance if missing
-    checkDockerfile();
-
     // Update .gitignore
     updateGitignore();
 
@@ -280,19 +277,6 @@ services:
 `;
 
     writeFileSync('.light/docker-compose.supabase-overrides.yml', supabaseOverrides);
-  }
-}
-
-function checkDockerfile() {
-  // T025 UPDATED (2025-10-12): Show informative message if Dockerfile missing
-  // FR-012: CLI doesn't generate Dockerfiles - users should use `docker init` or create manually
-  if (!existsSync('Dockerfile')) {
-    console.log('');
-    console.log(chalk.blue('ℹ'), 'For deployment mode, you\'ll need a Dockerfile.');
-    console.log('  Create one with:', chalk.cyan('docker init'), '(recommended)');
-    console.log('  OR write a custom Dockerfile');
-    console.log('  See:', chalk.dim('https://lightstack.dev/docs/dockerfile'));
-    console.log('');
   }
 }
 

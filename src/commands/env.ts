@@ -235,6 +235,15 @@ async function addEnvironment(name: string, options: EnvAddOptions) {
       console.log(chalk.green('✓'), `DNS API key saved to .env (gitignored)`);
     }
 
+    // T025 UPDATED (2025-10-12): Show Dockerfile info for ALL non-development environments
+    // FR-012: Progressive disclosure - only show this when user actually configures deployment
+    if (!existsSync('Dockerfile')) {
+      console.log('\n' + chalk.blue('ℹ'), 'Deployment mode requires a Dockerfile for your app.');
+      console.log('  Create one with:', chalk.cyan('docker init'), '(recommended)');
+      console.log('  OR write a custom Dockerfile');
+      console.log('  See:', chalk.dim('https://lightstack.dev/docs/dockerfile'));
+    }
+
     const acmeEmail = getAcmeEmail();
     if (acmeEmail) {
       console.log('\n' + chalk.blue('ℹ'), `ACME email already configured: ${acmeEmail} (from ${getUserConfigPath()})`);
@@ -245,7 +254,7 @@ async function addEnvironment(name: string, options: EnvAddOptions) {
     console.log(chalk.bold('\nNext steps:'));
     console.log('  Test deployment locally:     ', chalk.cyan(`light up ${name}`));
     console.log('  Deploy to target environment:', chalk.cyan(`light deploy ${name}`));
-    
+
     console.log(chalk.gray(`\nEdit configuration in ${configResult.filepath}`));
     console.log('');
 
